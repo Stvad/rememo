@@ -139,17 +139,20 @@ const PracticeOverlay = ({
   const [showAnswers, setShowAnswers] = React.useState(false);
   const [hasCloze, setHasCloze] = React.useState(true);
 
+  const isBlockEmbedMode = renderMode === RenderMode.BlockEmbed;
   const shouldShowAnswerFirst =
     renderMode === RenderMode.AnswerFirst && hasBlockChildrenUids && !showAnswers;
 
   // Reset showAnswers state
   React.useEffect(() => {
-    if (hasBlockChildren || hasCloze) {
+    if (isBlockEmbedMode) {
+      setShowAnswers(true);
+    } else if (hasBlockChildren || hasCloze) {
       setShowAnswers(false);
     } else {
       setShowAnswers(true);
     }
-  }, [hasBlockChildren, hasCloze, currentIndex, tagsList, selectedTag]);
+  }, [hasBlockChildren, hasCloze, currentIndex, tagsList, selectedTag, isBlockEmbedMode]);
 
   const onTagChange = async (tag) => {
     setCurrentIndex(0);
@@ -291,6 +294,7 @@ const PracticeOverlay = ({
                     setHasCloze={setHasCloze}
                     breadcrumbs={blockInfo.breadcrumbs}
                     showBreadcrumbs={false}
+                    isBlockEmbed={false}
                   />
                 ))
               ) : (
@@ -300,6 +304,7 @@ const PracticeOverlay = ({
                   setHasCloze={setHasCloze}
                   breadcrumbs={blockInfo.breadcrumbs}
                   showBreadcrumbs={showBreadcrumbs}
+                  isBlockEmbed={isBlockEmbedMode}
                 />
               )}
             </>
@@ -455,10 +460,15 @@ const TagSelectorItem = ({ text, onClick, active, tagsList }) => {
     setShowTagSettings(!showTagSettings);
   };
 
-  const toggleRenderMode = () => {
+  const toggleSwapQA = () => {
     const newRenderMode =
-      tagRenderMode === RenderMode.Normal ? RenderMode.AnswerFirst : RenderMode.Normal;
+      tagRenderMode === RenderMode.AnswerFirst ? RenderMode.Normal : RenderMode.AnswerFirst;
+    setRenderMode(text, newRenderMode);
+  };
 
+  const toggleBlockEmbed = () => {
+    const newRenderMode =
+      tagRenderMode === RenderMode.BlockEmbed ? RenderMode.Normal : RenderMode.BlockEmbed;
     setRenderMode(text, newRenderMode);
   };
 
@@ -472,7 +482,22 @@ const TagSelectorItem = ({ text, onClick, active, tagsList }) => {
               <Blueprint.Switch
                 alignIndicator={Blueprint.Alignment.RIGHT}
                 checked={tagRenderMode === RenderMode.AnswerFirst}
-                onChange={toggleRenderMode}
+                onChange={toggleSwapQA}
+                disabled={tagRenderMode === RenderMode.BlockEmbed}
+                className="mb-0"
+              />
+            </div>
+          }
+          className="hover:bg-transparent hover:no-underline"
+        />
+        <Blueprint.MenuItem
+          text={
+            <div className="flex items-center justify-between">
+              <span className="text-xs">Block Embed</span>
+              <Blueprint.Switch
+                alignIndicator={Blueprint.Alignment.RIGHT}
+                checked={tagRenderMode === RenderMode.BlockEmbed}
+                onChange={toggleBlockEmbed}
                 className="mb-0"
               />
             </div>

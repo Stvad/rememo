@@ -9,6 +9,7 @@ export enum CompletionStatus {
 export enum RenderMode {
   Normal = 'normal',
   AnswerFirst = 'answerFirst',
+  BlockEmbed = 'blockEmbed',
 }
 
 export type Today = {

@@ -12,12 +12,14 @@ const CardBlock = ({
   setHasCloze,
   breadcrumbs,
   showBreadcrumbs,
+  isBlockEmbed = false,
 }: {
   refUid: string;
   showAnswers: boolean;
   setHasCloze: (hasCloze: boolean) => void;
   breadcrumbs: BreadcrumbsType[];
   showBreadcrumbs: boolean;
+  isBlockEmbed?: boolean;
 }) => {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const [renderedBlockElm, setRenderedBlockElm] = React.useState<HTMLElement | null>(null);
@@ -27,14 +29,18 @@ const CardBlock = ({
 
   // Store the current refUid in a ref to access it inside the debounced function
   const refUidRef = React.useRef(refUid);
+  const isBlockEmbedRef = React.useRef(isBlockEmbed);
 
   // Create a ref for the mutation observer
   const observerRef = React.useRef<MutationObserver | null>(null);
 
-  // Update the ref when refUid changes
+  // Update the refs when props change
   React.useEffect(() => {
     refUidRef.current = refUid;
   }, [refUid]);
+  React.useEffect(() => {
+    isBlockEmbedRef.current = isBlockEmbed;
+  }, [isBlockEmbed]);
 
   // Create a ref to store the debounced function
   const debouncedFnRef = React.useRef<(() => void) | null>(null);
@@ -53,7 +59,11 @@ const CardBlock = ({
       if (!ref.current) return;
 
       await window.roamAlphaAPI.ui.components.unmountNode({ el: ref.current });
-      await window.roamAlphaAPI.ui.components.renderBlock({ uid: currentRefUid, el: ref.current });
+      await window.roamAlphaAPI.ui.components.renderBlock({
+        uid: currentRefUid,
+        el: ref.current,
+        ...(isBlockEmbedRef.current ? { 'zoom-path?': true } : {}),
+      });
 
       // Ensure block is not collapsed (so we can reveal children programatically)
       const roamBlockElm = ref.current.querySelector('.rm-block') as HTMLElement | null;
@@ -69,32 +79,36 @@ const CardBlock = ({
         domUtils.simulateMouseClick(expandControlBtn);
       }
 
-      // Disconnect any existing observer
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
+      // In block embed mode, skip blur listeners and mutation observer
+      // to prevent focus stealing when the user is editing within the embed
+      if (!isBlockEmbedRef.current) {
+        // Disconnect any existing observer
+        if (observerRef.current) {
+          observerRef.current.disconnect();
+        }
 
-      // Add a mutation observer to detect dynamically added textareas (so we can add blur listeners)
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-            mutation.addedNodes.forEach((node) => {
-              if (node instanceof HTMLElement) {
-                const newTextareas = node.querySelectorAll('textarea');
-                if (newTextareas.length > 0) {
-                  newTextareas.forEach((textarea) => {
-                    textarea.removeEventListener('blur', handleBlockBlur);
-                    textarea.addEventListener('blur', handleBlockBlur);
-                  });
+        // Add a mutation observer to detect dynamically added textareas (so we can add blur listeners)
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+              mutation.addedNodes.forEach((node) => {
+                if (node instanceof HTMLElement) {
+                  const newTextareas = node.querySelectorAll('textarea');
+                  if (newTextareas.length > 0) {
+                    newTextareas.forEach((textarea) => {
+                      textarea.removeEventListener('blur', handleBlockBlur);
+                      textarea.addEventListener('blur', handleBlockBlur);
+                    });
+                  }
                 }
-              }
-            });
-          }
+              });
+            }
+          });
         });
-      });
 
-      observer.observe(ref.current, { childList: true, subtree: true });
-      observerRef.current = observer;
+        observer.observe(ref.current, { childList: true, subtree: true });
+        observerRef.current = observer;
+      }
     };
 
     // Create the debounced function only once
@@ -122,7 +136,11 @@ const CardBlock = ({
   return (
     <div>
       {breadcrumbs && showBreadcrumbs && <Breadcrumbs breadcrumbs={breadcrumbs} />}
-      <ContentWrapper ref={ref} showAnswers={showAnswers}></ContentWrapper>
+      {isBlockEmbed ? (
+        <BlockEmbedWrapper ref={ref}></BlockEmbedWrapper>
+      ) : (
+        <ContentWrapper ref={ref} showAnswers={showAnswers}></ContentWrapper>
+      )}
     </div>
   );
 };
@@ -151,6 +169,17 @@ const ContentWrapper = styled.div<{
     border-radius: 2px;
     padding: 0;
     margin: 0;
+  }
+`;
+
+const BlockEmbedWrapper = styled.div`
+  // To align bullet on the left + ref count on the right correctly
+  position: relative;
+  left: -14px;
+  width: calc(100% + 19px);
+
+  & .rm-block-separator {
+    min-width: unset;
   }
 `;
 
