@@ -303,7 +303,7 @@ const PracticeOverlay = ({
                   showAnswers={showAnswers}
                   setHasCloze={setHasCloze}
                   breadcrumbs={blockInfo.breadcrumbs}
-                  showBreadcrumbs={isBlockEmbedMode || showBreadcrumbs}
+                  showBreadcrumbs={showBreadcrumbs}
                   isBlockEmbed={isBlockEmbedMode}
                 />
               )}

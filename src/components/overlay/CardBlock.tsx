@@ -29,14 +29,18 @@ const CardBlock = ({
 
   // Store the current refUid in a ref to access it inside the debounced function
   const refUidRef = React.useRef(refUid);
+  const isBlockEmbedRef = React.useRef(isBlockEmbed);
 
   // Create a ref for the mutation observer
   const observerRef = React.useRef<MutationObserver | null>(null);
 
-  // Update the ref when refUid changes
+  // Update the refs when props change
   React.useEffect(() => {
     refUidRef.current = refUid;
   }, [refUid]);
+  React.useEffect(() => {
+    isBlockEmbedRef.current = isBlockEmbed;
+  }, [isBlockEmbed]);
 
   // Create a ref to store the debounced function
   const debouncedFnRef = React.useRef<(() => void) | null>(null);
@@ -55,7 +59,11 @@ const CardBlock = ({
       if (!ref.current) return;
 
       await window.roamAlphaAPI.ui.components.unmountNode({ el: ref.current });
-      await window.roamAlphaAPI.ui.components.renderBlock({ uid: currentRefUid, el: ref.current });
+      await window.roamAlphaAPI.ui.components.renderBlock({
+        uid: currentRefUid,
+        el: ref.current,
+        ...(isBlockEmbedRef.current ? { 'zoom-path?': true } : {}),
+      });
 
       // Ensure block is not collapsed (so we can reveal children programatically)
       const roamBlockElm = ref.current.querySelector('.rm-block') as HTMLElement | null;
