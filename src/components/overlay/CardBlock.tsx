@@ -79,32 +79,36 @@ const CardBlock = ({
         domUtils.simulateMouseClick(expandControlBtn);
       }
 
-      // Disconnect any existing observer
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
+      // In block embed mode, skip blur listeners and mutation observer
+      // to prevent focus stealing when the user is editing within the embed
+      if (!isBlockEmbedRef.current) {
+        // Disconnect any existing observer
+        if (observerRef.current) {
+          observerRef.current.disconnect();
+        }
 
-      // Add a mutation observer to detect dynamically added textareas (so we can add blur listeners)
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-            mutation.addedNodes.forEach((node) => {
-              if (node instanceof HTMLElement) {
-                const newTextareas = node.querySelectorAll('textarea');
-                if (newTextareas.length > 0) {
-                  newTextareas.forEach((textarea) => {
-                    textarea.removeEventListener('blur', handleBlockBlur);
-                    textarea.addEventListener('blur', handleBlockBlur);
-                  });
+        // Add a mutation observer to detect dynamically added textareas (so we can add blur listeners)
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+              mutation.addedNodes.forEach((node) => {
+                if (node instanceof HTMLElement) {
+                  const newTextareas = node.querySelectorAll('textarea');
+                  if (newTextareas.length > 0) {
+                    newTextareas.forEach((textarea) => {
+                      textarea.removeEventListener('blur', handleBlockBlur);
+                      textarea.addEventListener('blur', handleBlockBlur);
+                    });
+                  }
                 }
-              }
-            });
-          }
+              });
+            }
+          });
         });
-      });
 
-      observer.observe(ref.current, { childList: true, subtree: true });
-      observerRef.current = observer;
+        observer.observe(ref.current, { childList: true, subtree: true });
+        observerRef.current = observer;
+      }
     };
 
     // Create the debounced function only once
