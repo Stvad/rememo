@@ -160,3 +160,85 @@ export const getCardUidsWithAllTags = async ({
 
   return result;
 };
+
+// --- Content tag queries ---
+// These search the original card block and its parent chain,
+// like Roam's backlink section. Used for include filters.
+
+/**
+ * Finds block UIDs that directly reference a given tag page.
+ */
+const blocksDirectlyReferencingTagQuery = `[
+  :find ?blockUid
+  :in $ ?tag
+  :where
+    [?tagPage :node/title ?tag]
+    [?block :block/refs ?tagPage]
+    [?block :block/uid ?blockUid]
+]`;
+
+/**
+ * Finds block UIDs that are descendants of a block referencing a given tag page.
+ * Combined with the direct query above, this gives Roam-backlink-style matching:
+ * a block matches if it or any of its ancestors references the tag.
+ */
+const blocksDescendingFromTagQuery = `[
+  :find ?blockUid
+  :in $ ?tag
+  :where
+    [?tagPage :node/title ?tag]
+    [?ancestor :block/refs ?tagPage]
+    [?block :block/parents ?ancestor]
+    [?block :block/uid ?blockUid]
+]`;
+
+/**
+ * Returns a Set of block UIDs where the block itself or any of its ancestors
+ * references the given tag page. This mimics Roam's backlink behavior.
+ */
+export const getBlockUidsWithContentTag = async (tag: string): Promise<Set<string>> => {
+  const uids = new Set<string>();
+
+  try {
+    const directResults = window.roamAlphaAPI.q(blocksDirectlyReferencingTagQuery, tag);
+    if (directResults?.length) {
+      for (const [uid] of directResults) {
+        uids.add(uid);
+      }
+    }
+
+    const descendantResults = window.roamAlphaAPI.q(blocksDescendingFromTagQuery, tag);
+    if (descendantResults?.length) {
+      for (const [uid] of descendantResults) {
+        uids.add(uid);
+      }
+    }
+  } catch (e) {
+    console.error(`Error fetching block UIDs with content tag "${tag}"`, e);
+  }
+
+  return uids;
+};
+
+/**
+ * Returns a Set of block UIDs that match ALL of the specified content tags
+ * (block or ancestors reference the tag page).
+ */
+export const getBlockUidsWithAllContentTags = async (
+  tags: string[]
+): Promise<Set<string>> => {
+  if (tags.length === 0) return new Set<string>();
+
+  const tagSets = await Promise.all(tags.map(getBlockUidsWithContentTag));
+
+  // Intersect all sets
+  const [first, ...rest] = tagSets;
+  const result = new Set<string>();
+  for (const uid of first) {
+    if (rest.every((set) => set.has(uid))) {
+      result.add(uid);
+    }
+  }
+
+  return result;
+};

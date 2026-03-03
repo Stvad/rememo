@@ -89,17 +89,17 @@ const FilterPopoverContent = ({
 
       <div className="mb-3">
         <label className="text-xs font-medium" style={{ color: '#5c7080' }}>
-          Exclude tags
+          Exclude (metadata tags)
         </label>
         <p className="text-xs mb-1" style={{ color: '#8a9ba8' }}>
-          Hide cards with any of these tags
+          Hide cards tagged in their memo data (e.g. memo/archived)
         </p>
         <Blueprint.TagInput
           values={sessionFilter.excludeTags}
           onChange={handleExcludeChange}
           addOnBlur
           addOnPaste
-          placeholder="Type tag and press Enter..."
+          placeholder="e.g. memo/archived"
           tagProps={{ minimal: true, intent: 'danger' }}
           separator=","
           className="filter-tag-input"
@@ -108,17 +108,17 @@ const FilterPopoverContent = ({
 
       <div>
         <label className="text-xs font-medium" style={{ color: '#5c7080' }}>
-          Include only tags
+          Include (content tags)
         </label>
         <p className="text-xs mb-1" style={{ color: '#8a9ba8' }}>
-          Only show cards with all of these tags
+          Only show cards that reference these tags (or are nested under them)
         </p>
         <Blueprint.TagInput
           values={sessionFilter.includeTags}
           onChange={handleIncludeChange}
           addOnBlur
           addOnPaste
-          placeholder="Type tag and press Enter..."
+          placeholder="e.g. readwise, chapter-5"
           tagProps={{ minimal: true, intent: 'success' }}
           separator=","
           className="filter-tag-input"

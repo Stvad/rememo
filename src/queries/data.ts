@@ -12,7 +12,7 @@ import {
   restoreCompletedUids,
 } from '~/queries/today';
 import { getChildBlocksOnPage } from './utils';
-import { getCardUidsWithAnyTag, getCardUidsWithAllTags } from './tags';
+import { getCardUidsWithAnyTag, getBlockUidsWithAllContentTags } from './tags';
 
 export interface SessionFilterConfig {
   includeTags: string[];
@@ -41,16 +41,17 @@ export const getPracticeData = async ({
     limitToLatest: false,
   })) as CompleteRecords;
 
-  // Build exclusion set from exclude tags
+  // Build exclusion set from exclude tags (metadata tags on data block)
   const excludedUids =
     sessionFilter.excludeTags.length > 0
       ? await getCardUidsWithAnyTag({ dataPageTitle, tags: sessionFilter.excludeTags })
       : new Set<string>();
 
-  // Build inclusion set from include tags (cards must have ALL include tags)
+  // Build inclusion set from include tags — searches the card block and its
+  // parent chain (like Roam backlinks), not the metadata block.
   const includedUids =
     sessionFilter.includeTags.length > 0
-      ? await getCardUidsWithAllTags({ dataPageTitle, tags: sessionFilter.includeTags })
+      ? await getBlockUidsWithAllContentTags(sessionFilter.includeTags)
       : null; // null means "no inclusion filter" (include all)
 
   const shouldExclude = (uid: string) => {
