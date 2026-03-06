@@ -128,7 +128,6 @@ const App = () => {
   const [pendingWrites, setPendingWrites] = React.useState(0);
   const [syncWarning, setSyncWarning] = React.useState('');
   const [error, setError] = React.useState('');
-  const [statusMessage, setStatusMessage] = React.useState('');
   const didAutoConnectRef = React.useRef(false);
   const optimisticUpdateIdRef = React.useRef(0);
   const swipeStateRef = React.useRef<SwipeState | null>(null);
@@ -155,7 +154,6 @@ const App = () => {
       setOptimisticUpdates([]);
       setBlockCache({});
       setSyncWarning('');
-      setStatusMessage('');
       setShowSetup(false);
     } catch (caughtError) {
       setError(formatError(caughtError));
@@ -293,14 +291,10 @@ const App = () => {
       refUid,
       optimisticSession,
       request,
-      pendingLabel,
-      successLabel,
     }: {
       refUid: string;
       optimisticSession?: Session;
       request: () => Promise<void>;
-      pendingLabel: string;
-      successLabel: string;
     }) => {
       const optimisticUpdate = {
         id: optimisticUpdateIdRef.current + 1,
@@ -313,7 +307,6 @@ const App = () => {
       setSyncWarning('');
       setOptimisticUpdates((current) => [...current, optimisticUpdate]);
       setPendingWrites((current) => current + 1);
-      setStatusMessage(pendingLabel);
 
       void request()
         .then(() => {
@@ -323,7 +316,6 @@ const App = () => {
           setOptimisticUpdates((current) =>
             current.filter((update) => update.id !== optimisticUpdate.id)
           );
-          setStatusMessage(successLabel);
         })
         .catch((caughtError) => {
           setOptimisticUpdates((current) =>
@@ -364,8 +356,6 @@ const App = () => {
       runOptimisticWrite({
         refUid: currentRefUid,
         optimisticSession: nextSession,
-        pendingLabel: `Syncing review for ${currentRefUid}...`,
-        successLabel: `Saved review for ${currentRefUid}`,
         request: () =>
           savePracticeData(client, {
             ...nextSession,
@@ -393,8 +383,6 @@ const App = () => {
     runOptimisticWrite({
       refUid: currentRefUid,
       optimisticSession: nextSession,
-      pendingLabel: `Syncing interval update for ${currentRefUid}...`,
-      successLabel: `Saved interval update for ${currentRefUid}`,
       request: () =>
         savePracticeData(client, {
           ...nextSession,
@@ -409,8 +397,6 @@ const App = () => {
 
     runOptimisticWrite({
       refUid: currentRefUid,
-      pendingLabel: `Archiving ${currentRefUid}...`,
-      successLabel: `Archived ${currentRefUid}`,
       request: () =>
         archiveCard(client, {
           refUid: currentRefUid,
@@ -425,8 +411,6 @@ const App = () => {
 
     runOptimisticWrite({
       refUid: currentRefUid,
-      pendingLabel: `Flagging ${currentRefUid} for Roam review...`,
-      successLabel: `Flagged ${currentRefUid} for Roam review`,
       request: () =>
         archiveCard(client, {
           refUid: currentRefUid,
