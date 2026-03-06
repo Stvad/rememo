@@ -420,23 +420,6 @@ input:focus {
   line-height: 1.45;
 }
 
-.setup-highlights {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.setup-highlight {
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: rgba(29, 20, 8, 0.08);
-  color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 .status-cluster {
   display: flex;
   gap: 8px;

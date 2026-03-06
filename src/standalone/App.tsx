@@ -491,16 +491,10 @@ const App = () => {
   const setupPanel = (
     <section className="panel-card setup-card">
       <div className="setup-intro">
-        <p className="eyebrow">Roam Backend Review</p>
-        <h1>Memo review</h1>
+        <h1>Rememo</h1>
         <p className="setup-copy">
-          Connect once, then review in a focused full-screen queue that reads and writes the same Memo metadata stored in your graph.
+          Review your RoamResearch roam/memo cards.
         </p>
-        <div className="setup-highlights">
-          <span className="setup-highlight">Mobile-first</span>
-          <span className="setup-highlight">Roam API</span>
-          <span className="setup-highlight">Memo scheduling</span>
-        </div>
       </div>
       <ConnectionForm
         isLoading={isLoading}
