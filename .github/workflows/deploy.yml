@@ -45,12 +45,8 @@ jobs:
       - name: Prepare pages artifact
         run: |
           mkdir _site
-          cp extension.js _site/
+          cp -R standalone-dist/. _site/
           cp README.md _site/
-          test -f extension.css && cp extension.css _site/ || true
-          test -f CHANGELOG.md && cp CHANGELOG.md _site/ || true
-          mkdir -p _site/standalone
-          cp -R standalone-dist/. _site/standalone/
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
