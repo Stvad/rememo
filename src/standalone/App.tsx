@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS: ReviewSettings = {
 const STORAGE_KEY = 'roam-memo-standalone-settings';
 const ARCHIVE_TAG = 'memo/archived';
 const REVIEW_IN_ROAM_TAG = 'memo/to-review';
+const SUPPORT_URL = 'https://buymeacoffee.com/vlad.sitalo';
 type ReviewSessionData = Awaited<ReturnType<typeof loadReviewSession>>;
 type OptimisticUpdate = {
   id: number;
@@ -502,6 +503,14 @@ const App = () => {
         settings={settings}
         setSettings={setSettings}
       />
+      <div className="support-card">
+        <p>
+          Rememo is free to use. If it saves you time, you can support ongoing development.
+        </p>
+        <a className="button secondary support-link" href={SUPPORT_URL} target="_blank" rel="noreferrer">
+          Buy me a coffee
+        </a>
+      </div>
     </section>
   );
 
@@ -605,6 +614,11 @@ const App = () => {
                         ? 'Connect to the graph, pick a tag, or review a few new cards to seed the queue.'
                         : 'Connect to the graph to load a review queue.'}
                   </p>
+                  {isReviewFinished ? (
+                    <a className="button secondary support-link finished-support-link" href={SUPPORT_URL} target="_blank" rel="noreferrer">
+                      Support Rememo
+                    </a>
+                  ) : null}
                 </div>
               )}
             </div>

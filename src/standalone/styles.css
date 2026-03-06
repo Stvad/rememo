@@ -420,6 +420,25 @@ input:focus {
   line-height: 1.45;
 }
 
+.support-card {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(29, 20, 8, 0.08);
+  color: var(--muted);
+}
+
+.support-link {
+  width: fit-content;
+  text-decoration: none;
+}
+
+.finished-support-link {
+  justify-self: center;
+  margin-top: 6px;
+}
+
 .status-cluster {
   display: flex;
   gap: 8px;
@@ -898,6 +917,12 @@ input:focus {
 
   .setup-copy {
     font-size: 0.94rem;
+  }
+
+  .support-card {
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 14px;
   }
 
   .icon-button {

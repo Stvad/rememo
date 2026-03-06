@@ -78,6 +78,14 @@ GitHub Pages is configured to publish the standalone app from the site root. The
 4. type-checks and builds the standalone app
 5. publishes `standalone-dist` as the Pages artifact root
 
+## Support
+
+If Rememo is useful to you, you can support it here:
+
+- Buy Me a Coffee: [buymeacoffee.com/vlad.sitalo](https://buymeacoffee.com/vlad.sitalo)
+- GitHub Sponsors: [github.com/sponsors/Stvad](https://github.com/sponsors/Stvad)
+- Patreon: [patreon.com/stvad](https://www.patreon.com/stvad)
+
 ## Project Notes
 
 This repository still contains the original Memo extension source and shared scheduling logic. The current hosted product and README are centered on the standalone reviewer.
