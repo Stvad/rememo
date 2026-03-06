@@ -14,6 +14,23 @@ It's the most effective method for transferring a large amount of knowledge from
 
 Just install "Memo" via Roam Depot.
 
+## Standalone Review App
+
+This repo now also includes a standalone React + TypeScript review app that talks directly to the Roam backend API. It is intended for quick reviews without opening the full Roam UI, while still reading and writing the same `roam/memo > data` metadata structure used by the extension.
+
+### Run the standalone app
+
+1. Install dependencies with `npm install`
+2. Start the web app with `npm run web:dev`
+3. Open the local URL shown by Vite
+4. Enter your graph, token, tag list, and data page
+
+### Standalone scripts
+
+- `npm run web:dev` starts the local Vite dev server
+- `npm run web:build` creates a production build in `standalone-dist`
+- `npm run web:typecheck` type-checks the standalone app and shared logic
+
 ## Getting Started
 
 1. Tag any block you wish to memorize with `#memo` (or any of your configured tags).

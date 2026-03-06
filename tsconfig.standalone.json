@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "es2017",
+    "module": "esnext",
+    "downlevelIteration": true,
+    "lib": ["dom", "dom.iterable", "es2020"]
+  },
+  "include": [
+    "./src/@types/global.d.ts",
+    "./src/standalone/**/*",
+    "./src/shared/**/*",
+    "./src/models/**/*",
+    "./src/utils/date.ts",
+    "./src/utils/object.ts",
+    "./src/utils/string.ts"
+  ]
+}

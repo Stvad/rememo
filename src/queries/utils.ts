@@ -1,4 +1,4 @@
-import { NewSession, ReviewModes, IntervalMultiplierType } from '~/models/session';
+import { generateNewSession } from '~/shared/newSession';
 
 export const parentChainInfoQuery = `[
   :find (pull ?parentIds [
@@ -213,27 +213,4 @@ export const getOrCreateChildBlock = async (parent_uid, block, order, blockProps
   return createChildBlock(parent_uid, block, order, blockProps);
 };
 
-export const generateNewSession = ({
-  reviewMode = ReviewModes.DefaultSpacedInterval,
-  dateCreated = undefined,
-  isNew = true,
-} = {}): NewSession => {
-  if (reviewMode === ReviewModes.DefaultSpacedInterval) {
-    return {
-      dateCreated: dateCreated || new Date(),
-      eFactor: 2.5,
-      interval: 0,
-      repetitions: 0,
-      isNew,
-      reviewMode,
-    };
-  }
-
-  return {
-    dateCreated: dateCreated || new Date(),
-    intervalMultiplier: 3,
-    intervalMultiplierType: IntervalMultiplierType.Days,
-    isNew,
-    reviewMode,
-  };
-};
+export { generateNewSession };

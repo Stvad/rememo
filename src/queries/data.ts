@@ -1,7 +1,6 @@
 import { getStringBetween, parseConfigString, parseRoamDateString } from '~/utils/string';
 import * as stringUtils from '~/utils/string';
 import { CompleteRecords, Records, RecordUid, ReviewModes } from '~/models/session';
-import { Today } from '~/models/practice';
 import {
   addDueCards,
   addNewCards,
@@ -9,10 +8,11 @@ import {
   calculateCompletedTodayCounts,
   calculateTodayStatus,
   initializeToday,
-  restoreCompletedUids,
 } from '~/queries/today';
+import { limitRemainingPracticeData } from '~/shared/planner';
 import { getChildBlocksOnPage } from './utils';
 import { getCardUidsWithAnyTag, getBlockUidsWithAllContentTags } from './tags';
+import { mapPluginPageCachedData, mapPluginPageData, mapPluginPageDataLatest } from '~/shared/records';
 
 export interface SessionFilterConfig {
   includeTags: string[];
@@ -154,108 +154,6 @@ export const getSelectedTagPageBlocksIds = async (selectedTag): Promise<string[]
   return filteredChildren.map((arr) => arr.uid);
 };
 
-// Ensure that the reviewMode field is always present
-const ensureReviewModeField = (record) => {
-  const hasReviewModeField = record.children.some((child) => child.string.includes('reviewMode'));
-  const children = hasReviewModeField
-    ? record.children
-    : [
-        ...record.children,
-        {
-          order: record.children.length,
-          string: `reviewMode:: ${ReviewModes.DefaultSpacedInterval}`,
-        },
-      ];
-
-  return {
-    ...record,
-    children,
-  };
-};
-
-const parseFieldValues = (object, node) => {
-  for (const field of ensureReviewModeField(node).children) {
-    const [key, value] = parseConfigString(field.string);
-
-    if (key === 'nextDueDate') {
-      object[key] = parseRoamDateString(getStringBetween(value, '[[', ']]'));
-    } else if (value === 'true' || value === 'false') {
-      object[key] = value === 'true';
-    } else if (stringUtils.isNumeric(value)) {
-      object[key] = Number(value);
-    } else {
-      object[key] = value;
-    }
-  }
-};
-
-const mapPluginPageDataLatest = (queryResultsData): Records =>
-  queryResultsData
-    .map((arr) => arr[0])[0]
-    .children?.reduce((acc, cur) => {
-      const uid = getStringBetween(cur.string, '((', '))');
-      acc[uid] = {};
-
-      if (!cur.children) return acc;
-
-      // Find the latest session child, skipping tag blocks
-      const sessionChildren = cur.children.filter(isSessionChild);
-      const latestChild = sessionChildren.find((child) => child.order === 0)
-        || sessionChildren[0];
-
-      if (!latestChild) return acc;
-
-      acc[uid].dateCreated = parseRoamDateString(getStringBetween(latestChild.string, '[[', ']]'));
-
-      if (!latestChild.children) return acc;
-      parseFieldValues(acc[uid], latestChild);
-
-      return acc;
-    }, {}) || {};
-
-/**
- * Returns true if a child block looks like a session record (starts with a date like [[...]]).
- * Tag children like [[memo/archived]] are page references, not session records — we detect
- * sessions by checking that the block string contains a date-like pattern and has field children.
- */
-const isSessionChild = (child: { string: string; children?: any[] }): boolean => {
-  // Session records have the format: [[DateString]] emoji
-  // Tag blocks have the format: [[tagName]]
-  // Session records always have children (grade::, interval::, etc.)
-  if (!child.children || child.children.length === 0) return false;
-
-  // Try to parse a date from the block string — session records contain Roam date strings
-  const dateString = getStringBetween(child.string, '[[', ']]');
-  const parsed = parseRoamDateString(dateString);
-  return parsed instanceof Date && !isNaN(parsed.getTime());
-};
-
-const mapPluginPageData = (queryResultsData): CompleteRecords =>
-  queryResultsData
-    .map((arr) => arr[0])[0]
-    .children?.reduce((acc, cur) => {
-      const uid = getStringBetween(cur.string, '((', '))');
-      acc[uid] = [];
-
-      if (!cur.children) return acc;
-
-      for (const child of cur.children) {
-        // Skip non-session children (e.g., tag blocks like [[memo/archived]])
-        if (!isSessionChild(child)) continue;
-
-        const record = {
-          refUid: uid,
-          dateCreated: parseRoamDateString(getStringBetween(child.string, '[[', ']]')),
-        };
-
-        parseFieldValues(record, child);
-
-        acc[uid].push(record);
-      }
-
-      return acc;
-    }, {}) || {};
-
 export const getPluginPageBlockDataQuery = `[
   :find (pull ?pluginPageChildren [
     :block/string
@@ -281,30 +179,6 @@ export const getPluginPageData = async ({ dataPageTitle, limitToLatest = true })
   return limitToLatest
     ? mapPluginPageDataLatest(queryResultsData)
     : mapPluginPageData(queryResultsData);
-};
-
-const mapPluginPageCachedData = (queryResultsData) => {
-  const data = queryResultsData.map((arr) => arr[0])[0].children;
-  if (!data || !data.length) return {};
-
-  if (!data?.length) return {};
-
-  return (
-    data.reduce((acc, cur) => {
-      const tag = getStringBetween(cur.string, '[[', ']]');
-      acc[tag] =
-        cur.children?.reduce((acc, cur) => {
-          if (!cur.string) return acc;
-          const [key, value] = cur.string.split('::').map((s: string) => s.trim());
-
-          const date = parseRoamDateString(value);
-          acc[key] = date ? date : value;
-
-          return acc;
-        }, {}) || {};
-      return acc;
-    }, {}) || {}
-  );
 };
 
 export const getPluginPageCachedData = async ({ dataPageTitle }) => {
@@ -346,126 +220,4 @@ export const getSessionData = async ({
     sessionData: selectedTagCardsData,
     cardUids: allTagCardsUids,
   };
-};
-
-/**
- *  Limit of cards to practice ensuring that due cards are always
- *  first but ~25% new cards are still practiced when limit is less than total due
- *  cards.
- */
-const limitRemainingPracticeData = ({
-  today,
-  dailyLimit,
-  tagsList,
-  isCramming,
-}: {
-  today: Today;
-  dailyLimit: number;
-  tagsList: string[];
-  isCramming: boolean;
-}) => {
-  const totalCards = today.combinedToday.due + today.combinedToday.new;
-
-  // When no need to limit, return;
-  if (!dailyLimit || !totalCards || isCramming) {
-    return;
-  }
-
-  restoreCompletedUids({ today, tagsList });
-
-  // Initialize selected cards
-  const selectedCards = tagsList.reduce(
-    (acc, currentTag) => ({
-      ...acc,
-      [currentTag]: {
-        newUids: [],
-        dueUids: [],
-      },
-    }),
-    {}
-  );
-
-  // @MAYBE: Consider making this a config option
-  const targetNewCardsRatio = 0.25;
-  const targetTotalCards = dailyLimit;
-  // We use Math.max here to ensure we have at leats one card even when targetTotal is < 4.
-  // The exception is when targetTotal is 1, in which case we want to prioritize due cards
-  const targetNewCards =
-    targetTotalCards === 1 ? 0 : Math.max(1, Math.floor(targetTotalCards * targetNewCardsRatio));
-  const targetDueCards = targetTotalCards - targetNewCards;
-
-  let totalNewAdded = 0;
-  let totalDueAdded = 0;
-  let totalAdded = totalNewAdded + totalDueAdded;
-
-  // Add one card at a time (Round Robin style) to evenly select cards from each
-  // deck.
-  roundRobinLoop: while (totalAdded < totalCards) {
-    for (const currentTag of tagsList) {
-      // if (rounds > 5) break roundRobinLoop;
-      totalAdded = totalNewAdded + totalDueAdded;
-
-      if (totalAdded === targetTotalCards) {
-        break roundRobinLoop;
-      }
-
-      const currentCards = selectedCards[currentTag];
-      const nextNewIndex = currentCards.newUids.length;
-      const nextNewCard = today.tags[currentTag].newUids[nextNewIndex];
-      const nextDueIndex = currentCards.dueUids.length;
-      const nextDueCard = today.tags[currentTag].dueUids[nextDueIndex];
-
-      const stillNeedNewCards = totalNewAdded < targetNewCards;
-      const stillNeedDueCards = totalDueAdded < targetDueCards;
-      const stillHaveDueCards = !!nextDueCard || totalDueAdded < today.combinedToday.due;
-      const stillHaveNewCards = !!nextNewCard || totalNewAdded < today.combinedToday.new;
-
-      // Add new card
-      if (nextNewCard && (stillNeedNewCards || !stillHaveDueCards)) {
-        selectedCards[currentTag].newUids.push(today.tags[currentTag].newUids[nextNewIndex]);
-        totalNewAdded++;
-
-        continue;
-      }
-
-      // Add due card
-      if (nextDueCard && (stillNeedDueCards || !stillHaveNewCards)) {
-        selectedCards[currentTag].dueUids.push(today.tags[currentTag].dueUids[nextDueIndex]);
-        totalDueAdded++;
-
-        continue;
-      }
-    }
-  }
-
-  // Now that we've generated the original distribution we can subtract
-  // completed cards from selected cards without affecting the original
-  // distribution
-  for (const tag of tagsList) {
-    const tagStats = today.tags[tag];
-    const completedDueUids = tagStats.completedDueUids;
-    const completedNewUids = tagStats.completedNewUids;
-    const remainingTargetDue = Math.max(
-      selectedCards[tag].dueUids.length - completedDueUids.length,
-      0
-    );
-    const remainingTargetNew = Math.max(
-      selectedCards[tag].newUids.length - completedNewUids.length,
-      0
-    );
-
-    selectedCards[tag].dueUids = selectedCards[tag].dueUids.slice(0, remainingTargetDue);
-    selectedCards[tag].newUids = selectedCards[tag].newUids.slice(0, remainingTargetNew);
-  }
-
-  // Replace today values with selected cards
-  for (const tag of tagsList) {
-    today.tags[tag] = {
-      ...today.tags[tag],
-      dueUids: selectedCards[tag].dueUids,
-      newUids: selectedCards[tag].newUids,
-      due: selectedCards[tag].dueUids.length,
-      new: selectedCards[tag].newUids.length,
-    };
-  }
 };
