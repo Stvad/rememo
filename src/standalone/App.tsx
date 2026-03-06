@@ -461,11 +461,19 @@ const App = () => {
               <input
                 value={settings.graph}
                 onChange={(event) => setSettings((current) => ({ ...current, graph: event.target.value }))}
-                placeholder="tools"
+                placeholder="your-graph-name"
               />
             </label>
             <label>
-              Token
+              <span className="field-label">
+                Token
+                <details className="field-help">
+                  <summary>How to get one</summary>
+                  <span>
+                    In Roam, open the graph menu, go to <strong>Settings</strong>, then <strong>Graph</strong>, and create a backend API token.
+                  </span>
+                </details>
+              </span>
               <input
                 value={settings.token}
                 type="password"
