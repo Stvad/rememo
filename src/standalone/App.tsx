@@ -495,23 +495,11 @@ const App = () => {
             <div className="review-scroll-area">
               {error ? <div className="banner error">{error}</div> : null}
               {syncWarning ? <div className="banner warning">{syncWarning}</div> : null}
-              {statusMessage ? <div className="banner success">{statusMessage}</div> : null}
 
               {showSetup ? (
                 <div className="review-setup-screen">{setupPanel}</div>
               ) : currentRefUid && currentBlock ? (
                 <>
-                <div className="breadcrumbs">
-                  {currentBlock.breadcrumbs
-                    .map((crumb) => crumb[':node/title'] || crumb[':block/string'])
-                    .filter(Boolean)
-                    .map((crumb, index) => (
-                      <span key={`${crumb}-${index}`} className="crumb">
-                        {crumb}
-                      </span>
-                    ))}
-                </div>
-
                 {currentBlock.parentBlocks.length ? (
                   <article className="context-block">
                     <p className="block-label">Parent context</p>
@@ -565,14 +553,7 @@ const App = () => {
 
             {currentRefUid && !showSetup ? (
               <div className="review-footer">
-                <div className={currentBlock && !showAnswers ? 'action-row compact-actions reveal-actions' : 'action-row compact-actions'}>
-                  <button
-                    className="button secondary"
-                    onClick={() => setCurrentIndex((current) => Math.max(current - 1, 0))}
-                    disabled={currentIndex === 0}
-                  >
-                    Back
-                  </button>
+                <div className={currentBlock && !showAnswers ? 'action-row compact-actions reveal-actions' : 'action-row compact-actions compact-two-actions'}>
                   <button
                     className="button ghost"
                     onClick={() =>
