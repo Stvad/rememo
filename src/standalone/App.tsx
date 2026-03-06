@@ -2,7 +2,6 @@ import React from 'react';
 import { generatePracticeData } from '~/shared/review';
 import { CompletionStatus } from '~/models/practice';
 import { ReviewModes, Session } from '~/models/session';
-import { daysBetween } from '~/utils/date';
 import { archiveCard, BlockInfo, BlockTreeNode, createClient, fetchBlockInfo, getCurrentCardData, loadReviewSession, ReviewSettings, savePracticeData } from '~/standalone/lib/memoRepository';
 import { renderRoamText } from '~/standalone/lib/text';
 import { RoamApiError } from '~/standalone/lib/roamApi';
@@ -840,12 +839,27 @@ const formatError = (error: unknown) => {
   return 'Unexpected error';
 };
 
+const getCalendarDayDelta = (targetDate: Date, referenceDate = new Date()) => {
+  const target = new Date(
+    targetDate.getFullYear(),
+    targetDate.getMonth(),
+    targetDate.getDate()
+  );
+  const reference = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate()
+  );
+
+  return Math.round((target.getTime() - reference.getTime()) / (24 * 60 * 60 * 1000));
+};
+
 const getCompactDueLabel = (session: Session) => {
   if (!session.nextDueDate) return 'New';
 
-  const dayDelta = daysBetween(session.nextDueDate, new Date());
+  const dayDelta = getCalendarDayDelta(session.nextDueDate);
   if (dayDelta === 0) return 'Today';
-  if (session.nextDueDate <= new Date()) {
+  if (dayDelta < 0) {
     if (Math.abs(dayDelta) === 1) return 'Due yesterday';
     return `Due ${Math.abs(dayDelta)}d ago`;
   }
@@ -857,7 +871,7 @@ const getCompactDueLabel = (session: Session) => {
 const getCompactNextReviewLabel = (session: Session) => {
   if (!session.nextDueDate) return 'New';
 
-  const dayDelta = Math.max(daysBetween(session.nextDueDate, new Date()), 0);
+  const dayDelta = Math.max(getCalendarDayDelta(session.nextDueDate), 0);
   if (dayDelta === 0) return 'Today';
   if (dayDelta < 7) return `${dayDelta}d`;
   if (dayDelta < 30) return `${Math.round(dayDelta / 7)}w`;
