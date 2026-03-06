@@ -505,10 +505,11 @@ const App = () => {
       />
       <div className="support-card">
         <p>
-          Rememo is free to use. If it saves you time, you can support ongoing development.
+          Rememo is free to use. If it helped you - you can say thank you and support its development
         </p>
         <a className="button secondary support-link" href={SUPPORT_URL} target="_blank" rel="noreferrer">
-          Buy me a coffee
+          <BuyMeACoffeeIcon />
+          <span>Buy me a coffee</span>
         </a>
       </div>
     </section>
@@ -616,7 +617,8 @@ const App = () => {
                   </p>
                   {isReviewFinished ? (
                     <a className="button secondary support-link finished-support-link" href={SUPPORT_URL} target="_blank" rel="noreferrer">
-                      Support Rememo
+                      <BuyMeACoffeeIcon />
+                      <span>Support Rememo</span>
                     </a>
                   ) : null}
                 </div>
@@ -818,6 +820,20 @@ const RoamReviewIcon = () => (
     <path
       d="M6.5 3A2.5 2.5 0 0 0 4 5.5v13A2.5 2.5 0 0 0 6.5 21H18a2 2 0 0 0 2-2V8.83a2 2 0 0 0-.59-1.41l-3.83-3.83A2 2 0 0 0 14.17 3H6.5Zm0 2h7v3a2 2 0 0 0 2 2h3v9H6.5a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5Zm2 7h7a1 1 0 1 1 0 2h-7a1 1 0 1 1 0-2Zm0 4h7a1 1 0 1 1 0 2h-7a1 1 0 1 1 0-2Z"
       fill="currentColor"
+    />
+  </svg>
+);
+
+const BuyMeACoffeeIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="M6 7.25A2.25 2.25 0 0 1 8.25 5h5.9a3.85 3.85 0 0 1 3.85 3.85v.4h.95A2.05 2.05 0 0 1 21 11.3v.15A4.55 4.55 0 0 1 16.45 16H16a6 6 0 0 1-5.87 5H8.9A5.9 5.9 0 0 1 3 15.1V9.25A2 2 0 0 1 5 7.25h1Zm2.25-.75a.75.75 0 0 0-.75.75v7.85a4.4 4.4 0 0 0 1.4 3.23 4.37 4.37 0 0 0 1.23.86A4.5 4.5 0 0 0 14.5 15.1V8.85A2.35 2.35 0 0 0 12.15 6.5h-3.9Zm7.75 7.96h.45a3.05 3.05 0 0 0 3.05-3.05v-.11a.55.55 0 0 0-.55-.55H16v3.71Z"
+      fill="currentColor"
+    />
+    <path
+      d="M10.8 3.15c.4.18.58.66.4 1.06l-.65 1.44a.8.8 0 0 1-1.46-.66l.66-1.44c.18-.4.65-.58 1.05-.4Zm3.25.1c.37.23.48.72.25 1.1l-.95 1.5a.8.8 0 1 1-1.35-.85l.95-1.5a.8.8 0 0 1 1.1-.25Z"
+      fill="currentColor"
+      opacity="0.72"
     />
   </svg>
 );

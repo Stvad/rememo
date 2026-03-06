@@ -430,13 +430,23 @@ input:focus {
 }
 
 .support-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   width: fit-content;
   text-decoration: none;
+  color: var(--accent-strong);
 }
 
 .finished-support-link {
   justify-self: center;
   margin-top: 6px;
+}
+
+.support-link svg {
+  width: 16px;
+  height: 16px;
+  color: #ff813f;
 }
 
 .status-cluster {
