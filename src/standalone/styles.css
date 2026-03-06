@@ -143,12 +143,6 @@ h1 {
   font-size: 1.15rem;
 }
 
-.connection-meta {
-  margin-top: 10px;
-  font-size: 0.88rem;
-  color: var(--muted);
-}
-
 label {
   display: grid;
   gap: 8px;
@@ -324,6 +318,26 @@ input:focus {
 
 .review-card {
   min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.review-scroll-area {
+  flex: 1;
+  min-height: 0;
+}
+
+.review-footer {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(29, 20, 8, 0.08);
+}
+
+.reveal-answer-button {
+  width: 100%;
+  justify-content: center;
 }
 
 .status-cluster {
@@ -435,15 +449,17 @@ input:focus {
 }
 
 .action-row {
-  margin-top: 18px;
   flex-wrap: wrap;
+}
+
+.compact-actions .button {
+  min-height: 42px;
 }
 
 .grade-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
-  margin-top: 18px;
 }
 
 .grade-grid.single {
@@ -509,6 +525,10 @@ input:focus {
   color: var(--muted);
 }
 
+.review-loading-state {
+  min-height: 32vh;
+}
+
 @media (min-width: 1024px) {
   .layout-grid {
     grid-template-columns: 360px minmax(0, 1fr);
@@ -527,23 +547,28 @@ input:focus {
 }
 
 @media (max-width: 720px) {
+  body {
+    overflow-x: hidden;
+  }
+
   .page-shell {
-    padding: 12px;
+    padding: 8px;
   }
 
   .hero-panel,
   .panel-card {
-    border-radius: 20px;
+    border-radius: 18px;
   }
 
   .hero-panel {
-    padding: 14px;
+    padding: 12px;
     align-items: start;
+    gap: 12px;
   }
 
   .layout-grid {
-    gap: 14px;
-    margin-top: 14px;
+    gap: 10px;
+    margin-top: 10px;
   }
 
   .review-panel {
@@ -555,7 +580,7 @@ input:focus {
   }
 
   .panel-card {
-    padding: 16px;
+    padding: 14px;
   }
 
   .panel-heading,
@@ -572,12 +597,14 @@ input:focus {
   }
 
   .review-header {
-    gap: 10px;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(29, 20, 8, 0.08);
   }
 
   .review-header h2 {
-    font-size: 1.8rem;
-    line-height: 1;
+    font-size: 1rem;
+    line-height: 1.15;
   }
 
   .status-cluster {
@@ -587,6 +614,8 @@ input:focus {
   .status-badge {
     flex: 1 1 auto;
     text-align: center;
+    padding: 7px 10px;
+    font-size: 0.7rem;
   }
 
   .deck-pill {
@@ -615,14 +644,16 @@ input:focus {
   .prompt-block,
   .answer-block,
   .context-block {
-    padding: 16px;
-    margin-top: 14px;
+    padding: 14px;
+    margin-top: 12px;
+    border-radius: 18px;
   }
 
   .block-text,
   .answer-tree,
   .answer-placeholder {
-    font-size: 1rem;
+    font-size: 0.98rem;
+    line-height: 1.45;
   }
 
   .breadcrumbs {
@@ -630,40 +661,88 @@ input:focus {
     flex-wrap: nowrap;
     padding-bottom: 4px;
     margin-right: -2px;
+    margin-top: 12px;
   }
 
   .crumb {
     white-space: nowrap;
+    padding: 7px 9px;
+    font-size: 0.78rem;
   }
 
   .action-row {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    gap: 8px;
   }
 
   .action-row .button {
     width: 100%;
-    min-height: 44px;
-    padding-inline: 10px;
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
   }
 
   .grade-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .grade-button {
-    min-height: 72px;
-    padding: 14px;
+    min-height: 64px;
+    padding: 12px;
+    border-radius: 16px;
   }
 
   .banner {
-    padding: 12px 14px;
+    padding: 10px 12px;
+    margin-top: 12px;
   }
 
   .empty-state {
-    min-height: 32vh;
-    padding-block: 24px;
+    min-height: 24vh;
+    padding-block: 18px;
+  }
+
+  .hero-copy {
+    display: none;
+  }
+
+  .summary-strip {
+    gap: 8px;
+  }
+
+  .stat-card {
+    padding: 10px 12px;
+  }
+
+  .stat-card strong {
+    font-size: 0.95rem;
+  }
+
+  .review-card {
+    min-height: calc(100dvh - 132px);
+    max-height: calc(100dvh - 132px);
+    overflow: hidden;
+  }
+
+  .review-scroll-area {
+    overflow-y: auto;
+    padding-bottom: 8px;
+  }
+
+  .review-footer {
+    position: sticky;
+    bottom: 0;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 12px;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(255, 252, 246, 0), rgba(255, 252, 246, 0.94) 18%, rgba(255, 252, 246, 0.98));
+    backdrop-filter: blur(10px);
+  }
+
+  .reveal-answer-button {
+    min-height: 42px;
   }
 }

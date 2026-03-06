@@ -187,6 +187,13 @@ const App = () => {
   const completedCount = selectedTag && displaySessionData ? displaySessionData.today.tags[selectedTag]?.completed || 0 : 0;
   const isReviewFinished = Boolean(displaySessionData && !currentRefUid && totalCount === 0 && completedCount > 0);
   const hasLoadedSession = Boolean(sessionData);
+  const currentCardTitle = currentRefUid
+    ? currentBlock
+      ? getCardHeading(currentBlock, selectedTag)
+      : 'Loading card...'
+    : isReviewFinished
+      ? 'Review complete'
+      : 'No cards ready';
 
   const hasSavedCredentials = Boolean(settings.graph.trim() && settings.token.trim());
 
@@ -423,8 +430,11 @@ const App = () => {
     }));
   }, [currentCardData]);
 
-  const completionState =
-    remainingCount === 0 ? CompletionStatus.Finished : CompletionStatus.Partial;
+  const completionState = !hasLoadedSession
+    ? 'Idle'
+    : remainingCount === 0
+      ? CompletionStatus.Finished
+      : CompletionStatus.Partial;
 
   return (
     <div className="page-shell">
@@ -453,9 +463,6 @@ const App = () => {
                 {isLoading ? 'Loading...' : 'Connect'}
               </button>
             </div>
-            {sessionData?.peerOrigin ? (
-              <p className="connection-meta">Connected to {sessionData.peerOrigin.replace('https://', '')}</p>
-            ) : null}
             <label>
               Graph
               <input
@@ -573,7 +580,7 @@ const App = () => {
             <div className="review-header">
               <div>
                 <p className="eyebrow">Current card</p>
-                <h2>{currentRefUid ? currentRefUid : isReviewFinished ? 'Review complete' : 'No cards ready'}</h2>
+                <h2>{currentCardTitle}</h2>
               </div>
               <div className="status-cluster">
                 {currentRefUid && currentCardData?.nextDueDate ? (
@@ -593,12 +600,13 @@ const App = () => {
               </div>
             </div>
 
-            {error ? <div className="banner error">{error}</div> : null}
-            {syncWarning ? <div className="banner warning">{syncWarning}</div> : null}
-            {statusMessage ? <div className="banner success">{statusMessage}</div> : null}
+            <div className="review-scroll-area">
+              {error ? <div className="banner error">{error}</div> : null}
+              {syncWarning ? <div className="banner warning">{syncWarning}</div> : null}
+              {statusMessage ? <div className="banner success">{statusMessage}</div> : null}
 
-            {currentRefUid && currentBlock ? (
-              <>
+              {currentRefUid && currentBlock ? (
+                <>
                 <div className="breadcrumbs">
                   {currentBlock.breadcrumbs
                     .map((crumb) => crumb[':node/title'] || crumb[':block/string'])
@@ -632,11 +640,6 @@ const App = () => {
                   <article className="answer-block">
                     <div className="answer-header">
                       <p className="block-label">Children</p>
-                      {!showAnswers ? (
-                        <button className="button primary" onClick={() => setShowAnswers(true)}>
-                          Show answer
-                        </button>
-                      ) : null}
                     </div>
 
                     {showAnswers ? (
@@ -646,14 +649,35 @@ const App = () => {
                     )}
                   </article>
                 ) : null}
+                </>
+              ) : currentRefUid ? (
+                <div className="empty-state review-loading-state">
+                  <h3>Loading card...</h3>
+                  <p>Fetching prompt and context from Roam.</p>
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <h3>{isReviewFinished ? 'Deck complete.' : hasLoadedSession ? 'No cards ready.' : 'Nothing loaded yet.'}</h3>
+                  <p>
+                    {isReviewFinished
+                      ? `You finished ${completedCount} ${completedCount === 1 ? 'card' : 'cards'} in ${selectedTag || 'this deck'}.`
+                      : hasLoadedSession
+                        ? 'Connect to the graph, pick a tag, or review a few new cards to seed the queue.'
+                        : 'Connect to the graph to load a review queue.'}
+                  </p>
+                </div>
+              )}
+            </div>
 
-                <div className="action-row">
+            {currentRefUid ? (
+              <div className="review-footer">
+                <div className="action-row compact-actions">
                   <button
                     className="button secondary"
                     onClick={() => setCurrentIndex((current) => Math.max(current - 1, 0))}
                     disabled={currentIndex === 0}
                   >
-                    Previous
+                    Back
                   </button>
                   <button
                     className="button ghost"
@@ -669,7 +693,13 @@ const App = () => {
                   </button>
                 </div>
 
-                {showAnswers ? (
+                {currentBlock && !showAnswers ? (
+                  <button className="button primary reveal-answer-button" onClick={() => setShowAnswers(true)}>
+                    Show answer
+                  </button>
+                ) : null}
+
+                {currentBlock && showAnswers ? (
                   currentCardData.reviewMode === ReviewModes.FixedInterval ? (
                     <div className="grade-grid single">
                       <button className="grade-button grade-good" onClick={handleFixedIntervalReview}>
@@ -692,19 +722,8 @@ const App = () => {
                     </div>
                   )
                 ) : null}
-              </>
-            ) : (
-              <div className="empty-state">
-                <h3>{isReviewFinished ? 'Deck complete.' : hasLoadedSession ? 'No cards ready.' : 'Nothing loaded yet.'}</h3>
-                <p>
-                  {isReviewFinished
-                    ? `You finished ${completedCount} ${completedCount === 1 ? 'card' : 'cards'} in ${selectedTag || 'this deck'}.`
-                    : hasLoadedSession
-                      ? 'Connect to the graph, pick a tag, or review a few new cards to seed the queue.'
-                      : 'Connect to the graph to load a review queue.'}
-                </p>
               </div>
-            )}
+            ) : null}
           </section>
         </main>
       </div>
@@ -741,6 +760,11 @@ const formatError = (error: unknown) => {
 
   if (error instanceof Error) return error.message;
   return 'Unexpected error';
+};
+
+const getCardHeading = (blockInfo: BlockInfo, fallback: string) => {
+  const pageTitle = blockInfo.breadcrumbs.find((crumb) => crumb[':node/title'])?.[':node/title'];
+  return pageTitle || fallback || 'Current card';
 };
 
 const getDueLabel = (session: Session) => {
