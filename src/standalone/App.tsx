@@ -114,6 +114,7 @@ const App = () => {
   const [selectedTag, setSelectedTag] = React.useState('');
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [showAnswers, setShowAnswers] = React.useState(false);
+  const [showSetup, setShowSetup] = React.useState(false);
   const [optimisticUpdates, setOptimisticUpdates] = React.useState<OptimisticUpdate[]>([]);
   const [blockCache, setBlockCache] = React.useState<Record<string, BlockInfo>>({});
   const [isLoading, setIsLoading] = React.useState(false);
@@ -147,6 +148,7 @@ const App = () => {
       setBlockCache({});
       setSyncWarning('');
       setStatusMessage('');
+      setShowSetup(false);
     } catch (caughtError) {
       setError(formatError(caughtError));
     } finally {
@@ -187,13 +189,6 @@ const App = () => {
   const completedCount = selectedTag && displaySessionData ? displaySessionData.today.tags[selectedTag]?.completed || 0 : 0;
   const isReviewFinished = Boolean(displaySessionData && !currentRefUid && totalCount === 0 && completedCount > 0);
   const hasLoadedSession = Boolean(sessionData);
-  const currentCardTitle = currentRefUid
-    ? currentBlock
-      ? getCardHeading(currentBlock, selectedTag)
-      : 'Loading card...'
-    : isReviewFinished
-      ? 'Review complete'
-      : 'No cards ready';
 
   const hasSavedCredentials = Boolean(settings.graph.trim() && settings.token.trim());
 
@@ -436,153 +431,46 @@ const App = () => {
       ? CompletionStatus.Finished
       : CompletionStatus.Partial;
 
+  const setupPanel = (
+    <section className="panel-card">
+      <ConnectionForm
+        isLoading={isLoading}
+        clientReady={Boolean(client)}
+        onConnect={refresh}
+        settings={settings}
+        setSettings={setSettings}
+      />
+    </section>
+  );
+
   return (
-    <div className="page-shell">
-      <section className="hero-panel">
-        <div className="hero-copy-wrap">
-          <p className="eyebrow">Roam Backend Review</p>
-          <h1>Memo review</h1>
-          <p className="hero-copy">
-            Fast review queue backed directly by the Roam API.
-          </p>
-        </div>
-        <div className="summary-strip">
-          <Stat label="Deck" value={selectedTag || 'None'} />
-          <Stat label="Remaining" value={String(remainingCount)} />
-          <Stat label="Status" value={completionState} />
-          <Stat label="Sync" value={pendingWrites > 0 ? `${pendingWrites} pending` : 'Idle'} />
-        </div>
-      </section>
-
-      <div className="layout-grid">
-        <aside className="settings-panel">
-          <section className="panel-card">
-            <div className="panel-heading">
-              <h2>Connection</h2>
-              <button className="button secondary" onClick={refresh} disabled={isLoading || !client}>
-                {isLoading ? 'Loading...' : 'Connect'}
-              </button>
-            </div>
-            <label>
-              Graph
-              <input
-                value={settings.graph}
-                onChange={(event) => setSettings((current) => ({ ...current, graph: event.target.value }))}
-                placeholder="your-graph-name"
-              />
-            </label>
-            <label>
-              <span className="field-label">
-                Token
-                <details className="field-help">
-                  <summary>How to get one</summary>
-                  <span>
-                    In Roam, open the graph menu, go to <strong>Settings</strong>, then <strong>Graph</strong>, and create a backend API token.
-                  </span>
-                </details>
-              </span>
-              <input
-                value={settings.token}
-                type="password"
-                onChange={(event) => setSettings((current) => ({ ...current, token: event.target.value }))}
-                placeholder="Roam graph token"
-              />
-            </label>
-            <label>
-              Tags
-              <input
-                value={settings.tagsListString}
-                onChange={(event) => setSettings((current) => ({ ...current, tagsListString: event.target.value }))}
-                placeholder="memo"
-              />
-            </label>
-            <label>
-              Data page
-              <input
-                value={settings.dataPageTitle}
-                onChange={(event) => setSettings((current) => ({ ...current, dataPageTitle: event.target.value }))}
-                placeholder="roam/memo"
-              />
-            </label>
-            <label>
-              Exclusion tags
-              <input
-                value={settings.globalExclusionTags}
-                onChange={(event) => setSettings((current) => ({ ...current, globalExclusionTags: event.target.value }))}
-                placeholder="memo/archived"
-              />
-            </label>
-            <div className="field-row">
-              <label>
-                Daily limit
-                <input
-                  type="number"
-                  min="0"
-                  value={settings.dailyLimit}
-                  onChange={(event) =>
-                    setSettings((current) => ({
-                      ...current,
-                      dailyLimit: Number(event.target.value || 0),
-                    }))
-                  }
-                />
-              </label>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={settings.shuffleCards}
-                  onChange={(event) =>
-                    setSettings((current) => ({
-                      ...current,
-                      shuffleCards: event.target.checked,
-                    }))
-                  }
-                />
-                Shuffle cards
-              </label>
-            </div>
-          </section>
-
-          <section className="panel-card">
-            <div className="panel-heading">
-              <h2>Decks</h2>
-            </div>
-            <div className="deck-list">
-              {(displaySessionData?.tagsList || []).map((tag) => {
-                const tagStats = displaySessionData?.today.tags[tag];
-                const queueSize = queuesByTag[tag]?.length || 0;
-
-                return (
-                  <button
-                    key={tag}
-                    className={tag === selectedTag ? 'deck-pill active' : 'deck-pill'}
-                    onClick={() => {
-                      setSelectedTag(tag);
-                      setCurrentIndex(0);
-                    }}
-                  >
-                    <span>{tag}</span>
-                    <span>{queueSize}/{(tagStats?.due || 0) + (tagStats?.new || 0)}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="deck-totals">
-              <Stat label="Due" value={String(displaySessionData?.today.tags[selectedTag]?.due || 0)} />
-              <Stat label="New" value={String(displaySessionData?.today.tags[selectedTag]?.new || 0)} />
-              <Stat label="Done today" value={String(displaySessionData?.today.tags[selectedTag]?.completed || 0)} />
-            </div>
-          </section>
-        </aside>
-
-        <main className="review-panel">
-          <section className="panel-card review-card">
+    <div className={hasLoadedSession ? 'page-shell review-shell' : 'page-shell'}>
+      {hasLoadedSession ? (
+        <main className="review-panel review-panel-full">
+          <section className="panel-card review-card review-card-full">
             <div className="review-header">
-              <div>
-                <p className="eyebrow">Current card</p>
-                <h2>{currentCardTitle}</h2>
+              <div className="deck-strip" role="tablist" aria-label="Decks">
+                {(displaySessionData?.tagsList || []).map((tag) => {
+                  const tagStats = displaySessionData?.today.tags[tag];
+                  const queueSize = queuesByTag[tag]?.length || 0;
+
+                  return (
+                    <button
+                      key={tag}
+                      className={tag === selectedTag ? 'deck-pill compact active' : 'deck-pill compact'}
+                      onClick={() => {
+                        setSelectedTag(tag);
+                        setCurrentIndex(0);
+                      }}
+                    >
+                      <span>{tag}</span>
+                      <span>{queueSize}/{(tagStats?.due || 0) + (tagStats?.new || 0)}</span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="status-cluster">
+                <span className="status-badge muted">{completionState}</span>
                 {currentRefUid && currentCardData?.nextDueDate ? (
                   <span className="status-badge">
                     {getDueLabel(currentCardData)}
@@ -597,8 +485,16 @@ const App = () => {
                 <span className="status-badge muted">
                   {currentRefUid ? `${Math.min(currentIndex + 1, remainingCount)} / ${Math.max(remainingCount, totalCount)}` : '0 / 0'}
                 </span>
+                <button
+                  className={showSetup ? 'button ghost mini active' : 'button ghost mini'}
+                  onClick={() => setShowSetup((current) => !current)}
+                >
+                  Setup
+                </button>
               </div>
             </div>
+
+            {showSetup ? <div className="review-setup-drawer">{setupPanel}</div> : null}
 
             <div className="review-scroll-area">
               {error ? <div className="banner error">{error}</div> : null}
@@ -671,7 +567,7 @@ const App = () => {
 
             {currentRefUid ? (
               <div className="review-footer">
-                <div className="action-row compact-actions">
+                <div className={currentBlock && !showAnswers ? 'action-row compact-actions reveal-actions' : 'action-row compact-actions'}>
                   <button
                     className="button secondary"
                     onClick={() => setCurrentIndex((current) => Math.max(current - 1, 0))}
@@ -691,13 +587,12 @@ const App = () => {
                   <button className="button ghost danger" onClick={handleArchive}>
                     Archive
                   </button>
+                  {currentBlock && !showAnswers ? (
+                    <button className="button primary" onClick={() => setShowAnswers(true)}>
+                      Reveal
+                    </button>
+                  ) : null}
                 </div>
-
-                {currentBlock && !showAnswers ? (
-                  <button className="button primary reveal-answer-button" onClick={() => setShowAnswers(true)}>
-                    Show answer
-                  </button>
-                ) : null}
 
                 {currentBlock && showAnswers ? (
                   currentCardData.reviewMode === ReviewModes.FixedInterval ? (
@@ -726,7 +621,31 @@ const App = () => {
             ) : null}
           </section>
         </main>
-      </div>
+      ) : (
+        <>
+          <section className="hero-panel">
+            <div className="hero-copy-wrap">
+              <p className="eyebrow">Roam Backend Review</p>
+              <h1>Memo review</h1>
+              <p className="hero-copy">
+                Fast review queue backed directly by the Roam API.
+              </p>
+            </div>
+            <div className="summary-strip">
+              <Stat label="Deck" value={selectedTag || 'None'} />
+              <Stat label="Remaining" value={String(remainingCount)} />
+              <Stat label="Status" value={completionState} />
+              <Stat label="Sync" value={pendingWrites > 0 ? `${pendingWrites} pending` : 'Idle'} />
+            </div>
+          </section>
+
+          <div className="layout-grid connect-layout">
+            <aside className="settings-panel">
+              {setupPanel}
+            </aside>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -736,6 +655,107 @@ const Stat = ({ label, value }: { label: string; value: string }) => (
     <span>{label}</span>
     <strong>{value}</strong>
   </div>
+);
+
+const ConnectionForm = ({
+  isLoading,
+  clientReady,
+  onConnect,
+  settings,
+  setSettings,
+}: {
+  isLoading: boolean;
+  clientReady: boolean;
+  onConnect: () => void;
+  settings: ReviewSettings;
+  setSettings: React.Dispatch<React.SetStateAction<ReviewSettings>>;
+}) => (
+  <>
+    <div className="panel-heading">
+      <h2>Connection</h2>
+      <button className="button secondary" onClick={onConnect} disabled={isLoading || !clientReady}>
+        {isLoading ? 'Loading...' : 'Connect'}
+      </button>
+    </div>
+    <label>
+      Graph
+      <input
+        value={settings.graph}
+        onChange={(event) => setSettings((current) => ({ ...current, graph: event.target.value }))}
+        placeholder="your-graph-name"
+      />
+    </label>
+    <label>
+      <span className="field-label">
+        Token
+        <details className="field-help">
+          <summary>How to get one</summary>
+          <span>
+            In Roam, open the graph menu, go to <strong>Settings</strong>, then <strong>Graph</strong>, and create a backend API token.
+          </span>
+        </details>
+      </span>
+      <input
+        value={settings.token}
+        type="password"
+        onChange={(event) => setSettings((current) => ({ ...current, token: event.target.value }))}
+        placeholder="Roam graph token"
+      />
+    </label>
+    <label>
+      Tags
+      <input
+        value={settings.tagsListString}
+        onChange={(event) => setSettings((current) => ({ ...current, tagsListString: event.target.value }))}
+        placeholder="memo"
+      />
+    </label>
+    <label>
+      Data page
+      <input
+        value={settings.dataPageTitle}
+        onChange={(event) => setSettings((current) => ({ ...current, dataPageTitle: event.target.value }))}
+        placeholder="roam/memo"
+      />
+    </label>
+    <label>
+      Exclusion tags
+      <input
+        value={settings.globalExclusionTags}
+        onChange={(event) => setSettings((current) => ({ ...current, globalExclusionTags: event.target.value }))}
+        placeholder="memo/archived"
+      />
+    </label>
+    <div className="field-row">
+      <label>
+        Daily limit
+        <input
+          type="number"
+          min="0"
+          value={settings.dailyLimit}
+          onChange={(event) =>
+            setSettings((current) => ({
+              ...current,
+              dailyLimit: Number(event.target.value || 0),
+            }))
+          }
+        />
+      </label>
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.shuffleCards}
+          onChange={(event) =>
+            setSettings((current) => ({
+              ...current,
+              shuffleCards: event.target.checked,
+            }))
+          }
+        />
+        Shuffle cards
+      </label>
+    </div>
+  </>
 );
 
 const BlockTree = ({ tree }: { tree: BlockTreeNode[] }) => (
@@ -760,11 +780,6 @@ const formatError = (error: unknown) => {
 
   if (error instanceof Error) return error.message;
   return 'Unexpected error';
-};
-
-const getCardHeading = (blockInfo: BlockInfo, fallback: string) => {
-  const pageTitle = blockInfo.breadcrumbs.find((crumb) => crumb[':node/title'])?.[':node/title'];
-  return pageTitle || fallback || 'Current card';
 };
 
 const getDueLabel = (session: Session) => {

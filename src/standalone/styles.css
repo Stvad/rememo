@@ -42,6 +42,11 @@ input {
   padding: 24px;
 }
 
+.page-shell.review-shell {
+  max-width: none;
+  padding: 0;
+}
+
 .hero-panel,
 .panel-card {
   background: var(--card);
@@ -113,6 +118,11 @@ h1 {
   margin-top: 20px;
 }
 
+.connect-layout {
+  grid-template-columns: minmax(0, 560px);
+  justify-content: center;
+}
+
 .settings-panel,
 .review-panel {
   min-width: 0;
@@ -141,6 +151,10 @@ h1 {
 .panel-heading h2,
 .review-header h2 {
   font-size: 1.15rem;
+}
+
+.review-panel-full {
+  min-height: 100dvh;
 }
 
 label {
@@ -257,6 +271,17 @@ input:focus {
   font-weight: 600;
 }
 
+.button.mini {
+  min-height: 34px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+
+.button.mini.active {
+  background: rgba(193, 95, 60, 0.12);
+  border-color: rgba(193, 95, 60, 0.3);
+}
+
 .button.primary {
   background: var(--accent);
   color: #fff9f3;
@@ -297,6 +322,14 @@ input:focus {
   color: #fff8ee;
 }
 
+.deck-pill.compact {
+  padding: 9px 12px;
+  border-radius: 999px;
+  gap: 8px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .deck-totals {
   display: grid;
   gap: 12px;
@@ -322,22 +355,47 @@ input:focus {
   flex-direction: column;
 }
 
+.review-card-full {
+  min-height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  padding: 16px 18px;
+}
+
+.deck-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  min-width: 0;
+}
+
 .review-scroll-area {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .review-footer {
   display: grid;
   gap: 12px;
-  margin-top: 18px;
-  padding-top: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid rgba(29, 20, 8, 0.08);
 }
 
-.reveal-answer-button {
-  width: 100%;
-  justify-content: center;
+.review-setup-drawer {
+  margin-top: 12px;
+}
+
+.review-setup-drawer .panel-card {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .status-cluster {
@@ -453,13 +511,15 @@ input:focus {
 }
 
 .compact-actions .button {
-  min-height: 42px;
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 0.88rem;
 }
 
 .grade-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .grade-grid.single {
@@ -467,16 +527,19 @@ input:focus {
 }
 
 .grade-button {
-  border-radius: 20px;
-  padding: 18px 16px;
+  border-radius: 14px;
+  padding: 10px 8px;
   display: grid;
-  gap: 6px;
-  text-align: left;
+  gap: 2px;
+  text-align: center;
   color: #fffdf8;
+  min-height: 50px;
 }
 
 .grade-button strong {
-  font-size: 1.2rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.92;
 }
 
 .grade-forgot {
@@ -555,6 +618,10 @@ input:focus {
     padding: 8px;
   }
 
+  .page-shell.review-shell {
+    padding: 0;
+  }
+
   .hero-panel,
   .panel-card {
     border-radius: 18px;
@@ -598,17 +665,13 @@ input:focus {
 
   .review-header {
     gap: 8px;
-    padding-bottom: 10px;
+    padding-bottom: 8px;
     border-bottom: 1px solid rgba(29, 20, 8, 0.08);
-  }
-
-  .review-header h2 {
-    font-size: 1rem;
-    line-height: 1.15;
   }
 
   .status-cluster {
     width: 100%;
+    gap: 6px;
   }
 
   .status-badge {
@@ -618,10 +681,21 @@ input:focus {
     font-size: 0.7rem;
   }
 
+  .deck-strip {
+    width: 100%;
+  }
+
   .deck-pill {
     align-items: start;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .deck-pill.compact {
+    flex-direction: row;
+    align-items: center;
+    padding: 8px 10px;
+    font-size: 0.76rem;
   }
 
   .deck-totals {
@@ -676,6 +750,10 @@ input:focus {
     gap: 8px;
   }
 
+  .action-row.reveal-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .action-row .button {
     width: 100%;
     min-height: 38px;
@@ -684,14 +762,19 @@ input:focus {
   }
 
   .grade-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .grade-button {
-    min-height: 64px;
-    padding: 12px;
-    border-radius: 16px;
+    min-height: 44px;
+    padding: 8px 4px;
+    border-radius: 12px;
+    font-size: 0.74rem;
+  }
+
+  .grade-button strong {
+    display: none;
   }
 
   .banner {
@@ -726,6 +809,12 @@ input:focus {
     overflow: hidden;
   }
 
+  .review-card-full {
+    min-height: 100dvh;
+    max-height: 100dvh;
+    padding: 10px 10px calc(8px + env(safe-area-inset-bottom));
+  }
+
   .review-scroll-area {
     overflow-y: auto;
     padding-bottom: 8px;
@@ -740,9 +829,5 @@ input:focus {
     padding-bottom: calc(6px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, rgba(255, 252, 246, 0), rgba(255, 252, 246, 0.94) 18%, rgba(255, 252, 246, 0.98));
     backdrop-filter: blur(10px);
-  }
-
-  .reveal-answer-button {
-    min-height: 42px;
   }
 }
