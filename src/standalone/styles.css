@@ -499,6 +499,15 @@ input:focus {
   font-size: 0.84rem;
 }
 
+.icon-action-button {
+  padding: 0;
+}
+
+.icon-action-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 .grade-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -745,8 +754,8 @@ input:focus {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .action-row.compact-two-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .action-row.compact-three-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .action-row .button {
@@ -769,7 +778,9 @@ input:focus {
   }
 
   .grade-button strong {
-    display: none;
+    display: block;
+    font-size: 0.56rem;
+    line-height: 1.1;
   }
 
   .banner {

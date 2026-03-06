@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS: ReviewSettings = {
 
 const STORAGE_KEY = 'roam-memo-standalone-settings';
 const ARCHIVE_TAG = 'memo/archived';
+const REVIEW_IN_ROAM_TAG = 'memo/to-review';
 type ReviewSessionData = Awaited<ReturnType<typeof loadReviewSession>>;
 type OptimisticUpdate = {
   id: number;
@@ -412,6 +413,22 @@ const App = () => {
     });
   }, [client, currentRefUid, runOptimisticWrite, settings.dataPageTitle]);
 
+  const handleReviewInRoam = React.useCallback(() => {
+    if (!client || !currentRefUid) return;
+
+    runOptimisticWrite({
+      refUid: currentRefUid,
+      pendingLabel: `Flagging ${currentRefUid} for Roam review...`,
+      successLabel: `Flagged ${currentRefUid} for Roam review`,
+      request: () =>
+        archiveCard(client, {
+          refUid: currentRefUid,
+          dataPageTitle: settings.dataPageTitle,
+          tag: REVIEW_IN_ROAM_TAG,
+        }),
+    });
+  }, [client, currentRefUid, runOptimisticWrite, settings.dataPageTitle]);
+
   const intervalEstimates = React.useMemo(() => {
     if (currentCardData.reviewMode !== ReviewModes.DefaultSpacedInterval) return [];
 
@@ -544,7 +561,7 @@ const App = () => {
 
             {currentRefUid && !showSetup ? (
               <div className="review-footer">
-                <div className={currentBlock && !showAnswers ? 'action-row compact-actions reveal-actions' : 'action-row compact-actions compact-two-actions'}>
+                <div className={currentBlock && !showAnswers ? 'action-row compact-actions reveal-actions' : 'action-row compact-actions compact-three-actions'}>
                   <button
                     className="button ghost"
                     onClick={() =>
@@ -554,8 +571,21 @@ const App = () => {
                   >
                     Skip
                   </button>
-                  <button className="button ghost danger" onClick={handleArchive}>
-                    Archive
+                  <button
+                    className="button ghost icon-action-button"
+                    onClick={handleReviewInRoam}
+                    aria-label="Review in Roam"
+                    title="Review in Roam"
+                  >
+                    <RoamReviewIcon />
+                  </button>
+                  <button
+                    className="button ghost danger icon-action-button"
+                    onClick={handleArchive}
+                    aria-label="Archive"
+                    title="Archive"
+                  >
+                    <ArchiveIcon />
                   </button>
                   {currentBlock && !showAnswers ? (
                     <button className="button primary" onClick={() => setShowAnswers(true)}>
@@ -569,7 +599,7 @@ const App = () => {
                     <div className="grade-grid single">
                       <button className="grade-button grade-good" onClick={handleFixedIntervalReview}>
                         <span>Save interval</span>
-                        <strong>{generatePracticeData({ ...currentCardData, dateCreated: new Date(), reviewMode: ReviewModes.FixedInterval }).nextDueDateFromNow}</strong>
+                        <strong>{getCompactNextReviewLabel(generatePracticeData({ ...currentCardData, dateCreated: new Date(), reviewMode: ReviewModes.FixedInterval }))}</strong>
                       </button>
                     </div>
                   ) : (
@@ -581,7 +611,7 @@ const App = () => {
                           onClick={() => void handleGrade(grade)}
                         >
                           <span>{gradeLabel(grade)}</span>
-                          <strong>{result.nextDueDateFromNow}</strong>
+                          <strong>{getCompactNextReviewLabel(result)}</strong>
                         </button>
                       ))}
                     </div>
@@ -737,6 +767,24 @@ const SetupIcon = () => (
   </svg>
 );
 
+const ArchiveIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="M20.54 5.23 19.15 3.5a1 1 0 0 0-.78-.37H5.63a1 1 0 0 0-.78.37L3.46 5.23A2 2 0 0 0 3 6.5V8a1 1 0 0 0 1 1h1v8.5A2.5 2.5 0 0 0 7.5 20h9A2.5 2.5 0 0 0 19 17.5V9h1a1 1 0 0 0 1-1V6.5a2 2 0 0 0-.46-1.27ZM6.11 5h11.78l.8 1H5.31l.8-1ZM17 17.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V9h10v8.5ZM10 11h4a1 1 0 1 1 0 2h-4a1 1 0 1 1 0-2Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const RoamReviewIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="M6.5 3A2.5 2.5 0 0 0 4 5.5v13A2.5 2.5 0 0 0 6.5 21H18a2 2 0 0 0 2-2V8.83a2 2 0 0 0-.59-1.41l-3.83-3.83A2 2 0 0 0 14.17 3H6.5Zm0 2h7v3a2 2 0 0 0 2 2h3v9H6.5a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5Zm2 7h7a1 1 0 1 1 0 2h-7a1 1 0 1 1 0-2Zm0 4h7a1 1 0 1 1 0 2h-7a1 1 0 1 1 0-2Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
 const getContextLines = (blockInfo: BlockInfo) => {
   const pageTitle = blockInfo.breadcrumbs.find((crumb) => crumb[':node/title'])?.[':node/title'];
   return [pageTitle, ...blockInfo.parentBlocks].filter(
@@ -780,6 +828,17 @@ const getCompactDueLabel = (session: Session) => {
 
   if (dayDelta === 1) return 'In 1d';
   return `In ${dayDelta}d`;
+};
+
+const getCompactNextReviewLabel = (session: Session) => {
+  if (!session.nextDueDate) return 'New';
+
+  const dayDelta = Math.max(daysBetween(session.nextDueDate, new Date()), 0);
+  if (dayDelta === 0) return 'Today';
+  if (dayDelta < 7) return `${dayDelta}d`;
+  if (dayDelta < 30) return `${Math.round(dayDelta / 7)}w`;
+  if (dayDelta < 365) return `${Math.round(dayDelta / 30)}mo`;
+  return `${Math.round(dayDelta / 365)}y`;
 };
 
 const gradeLabel = (grade: number) => {
