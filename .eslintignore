@@ -1,5 +1,7 @@
 # node_modules/
 /extension.js
+standalone-dist/
+vite.config.ts
 tailwind.config.js
 webpack.config.js
 changelog-setup.js

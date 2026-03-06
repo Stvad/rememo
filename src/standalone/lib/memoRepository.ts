@@ -199,43 +199,6 @@ const getChildBlock = async (client: RoamApiClient, parentUid: string, blockStri
   return result.length ? result[0][0] : '';
 };
 
-const createPage = async (client: RoamApiClient, pageTitle: string) => {
-  const uid = generateUid();
-  await client.write({
-    action: 'create-page',
-    page: {
-      title: pageTitle,
-      uid,
-    },
-  });
-
-  return uid;
-};
-
-const createChildBlock = async (
-  client: RoamApiClient,
-  parentUid: string,
-  blockString: string,
-  order: number,
-  blockProps: Record<string, unknown> = {}
-) => {
-  const uid = generateUid();
-  await client.write({
-    action: 'create-block',
-    location: {
-      'parent-uid': parentUid,
-      order,
-    },
-    block: {
-      string: blockString,
-      uid,
-      ...blockProps,
-    },
-  });
-
-  return uid;
-};
-
 const batchActionsWrite = async (
   client: RoamApiClient,
   actions: Array<Record<string, unknown>>
@@ -246,38 +209,6 @@ const batchActionsWrite = async (
     action: 'batch-actions',
     actions,
   });
-};
-
-const getOrCreatePage = async (client: RoamApiClient, pageTitle: string) => {
-  const existingUid = await getPageUid(client, pageTitle);
-  if (existingUid) return existingUid;
-  return createPage(client, pageTitle);
-};
-
-const getOrCreateBlockOnPage = async (
-  client: RoamApiClient,
-  pageTitle: string,
-  blockString: string,
-  order: number,
-  blockProps: Record<string, unknown> = {}
-) => {
-  const existingUid = await getBlockOnPage(client, pageTitle, blockString);
-  if (existingUid) return existingUid;
-
-  const pageUid = await getOrCreatePage(client, pageTitle);
-  return createChildBlock(client, pageUid, blockString, order, blockProps);
-};
-
-const getOrCreateChildBlock = async (
-  client: RoamApiClient,
-  parentUid: string,
-  blockString: string,
-  order: number,
-  blockProps: Record<string, unknown> = {}
-) => {
-  const existingUid = await getChildBlock(client, parentUid, blockString);
-  if (existingUid) return existingUid;
-  return createChildBlock(client, parentUid, blockString, order, blockProps);
 };
 
 const getPluginPageData = async (client: RoamApiClient, dataPageTitle: string) => {
