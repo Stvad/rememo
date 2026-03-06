@@ -373,6 +373,7 @@ input:focus {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 .review-footer {
@@ -422,16 +423,22 @@ input:focus {
   margin-top: 18px;
 }
 
-.context-stack {
-  display: grid;
-  gap: 10px;
+.context-block {
+  padding: 12px 14px;
   margin-top: 12px;
 }
 
+.context-stack {
+  display: grid;
+  gap: 6px;
+}
+
 .context-line {
-  padding-left: 14px;
+  padding-left: 10px;
   border-left: 2px solid rgba(29, 20, 8, 0.14);
   color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.3;
 }
 
 .block-text,
@@ -741,11 +748,20 @@ input:focus {
     border-radius: 18px;
   }
 
+  .context-block {
+    padding: 10px 12px;
+  }
+
   .block-text,
   .answer-tree,
   .answer-placeholder {
     font-size: 0.98rem;
     line-height: 1.45;
+  }
+
+  .context-line {
+    font-size: 0.84rem;
+    line-height: 1.25;
   }
 
   .action-row {

@@ -26,6 +26,12 @@ type OptimisticUpdate = {
   refUid: string;
   nextSession?: Session;
 };
+type SwipeState = {
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+};
 
 const usePersistentSettings = () => {
   const [settings, setSettings] = React.useState<ReviewSettings>(() => {
@@ -125,6 +131,7 @@ const App = () => {
   const [statusMessage, setStatusMessage] = React.useState('');
   const didAutoConnectRef = React.useRef(false);
   const optimisticUpdateIdRef = React.useRef(0);
+  const swipeStateRef = React.useRef<SwipeState | null>(null);
 
   const client = React.useMemo(() => {
     if (!settings.graph.trim() || !settings.token.trim()) return null;
@@ -449,6 +456,60 @@ const App = () => {
       ? CompletionStatus.Finished
       : CompletionStatus.Partial;
 
+  const handleTouchStart = React.useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (showSetup || !currentRefUid) return;
+
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    swipeStateRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      currentX: touch.clientX,
+      currentY: touch.clientY,
+    };
+  }, [currentRefUid, showSetup]);
+
+  const handleTouchMove = React.useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (!swipeStateRef.current) return;
+
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    swipeStateRef.current = {
+      ...swipeStateRef.current,
+      currentX: touch.clientX,
+      currentY: touch.clientY,
+    };
+  }, []);
+
+  const handleTouchEnd = React.useCallback(() => {
+    const swipeState = swipeStateRef.current;
+    swipeStateRef.current = null;
+
+    if (!swipeState || showSetup || !currentRefUid) return;
+
+    const deltaX = swipeState.currentX - swipeState.startX;
+    const deltaY = swipeState.currentY - swipeState.startY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    if (absX < 72 || absX < absY * 1.25) return;
+
+    if (deltaX > 0) {
+      if (!showAnswers && currentBlock) {
+        setShowAnswers(true);
+      }
+      return;
+    }
+
+    void handleReviewInRoam();
+  }, [currentBlock, currentRefUid, handleReviewInRoam, showAnswers, showSetup]);
+
+  const handleTouchCancel = React.useCallback(() => {
+    swipeStateRef.current = null;
+  }, []);
+
   const setupPanel = (
     <section className="panel-card setup-card">
       <ConnectionForm
@@ -510,7 +571,13 @@ const App = () => {
               </button>
             </div>
 
-            <div className="review-scroll-area">
+            <div
+              className="review-scroll-area"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchCancel}
+            >
               {error ? <div className="banner error">{error}</div> : null}
               {syncWarning ? <div className="banner warning">{syncWarning}</div> : null}
 
