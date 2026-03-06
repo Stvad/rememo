@@ -47,6 +47,13 @@ input {
   padding: 0;
 }
 
+.page-shell.setup-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
 .hero-panel,
 .panel-card {
   background: var(--card);
@@ -121,6 +128,10 @@ h1 {
 .connect-layout {
   grid-template-columns: minmax(0, 560px);
   justify-content: center;
+}
+
+.setup-shell-main {
+  width: min(100%, 680px);
 }
 
 .settings-panel,
@@ -393,6 +404,37 @@ input:focus {
   backdrop-filter: none;
   background: rgba(255, 255, 255, 0.72);
   padding: 14px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.setup-intro {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.setup-copy {
+  max-width: 48ch;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.setup-highlights {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.setup-highlight {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(29, 20, 8, 0.08);
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .status-cluster {
@@ -652,6 +694,11 @@ input:focus {
     padding: 0;
   }
 
+  .page-shell.setup-shell {
+    padding: 10px;
+    place-items: start;
+  }
+
   .hero-panel,
   .panel-card {
     border-radius: 18px;
@@ -859,6 +906,15 @@ input:focus {
 
   .setup-card {
     padding: 12px;
+  }
+
+  .setup-intro {
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .setup-copy {
+    font-size: 0.94rem;
   }
 
   .icon-button {

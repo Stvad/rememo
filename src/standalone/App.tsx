@@ -434,12 +434,6 @@ const App = () => {
     }));
   }, [currentCardData]);
 
-  const completionState = !hasLoadedSession
-    ? 'Idle'
-    : remainingCount === 0
-      ? CompletionStatus.Finished
-      : CompletionStatus.Partial;
-
   const handleTouchStart = React.useCallback((event: React.TouchEvent<HTMLDivElement>) => {
     if (showSetup || !currentRefUid) return;
 
@@ -496,6 +490,18 @@ const App = () => {
 
   const setupPanel = (
     <section className="panel-card setup-card">
+      <div className="setup-intro">
+        <p className="eyebrow">Roam Backend Review</p>
+        <h1>Memo review</h1>
+        <p className="setup-copy">
+          Connect once, then review in a focused full-screen queue that reads and writes the same Memo metadata stored in your graph.
+        </p>
+        <div className="setup-highlights">
+          <span className="setup-highlight">Mobile-first</span>
+          <span className="setup-highlight">Roam API</span>
+          <span className="setup-highlight">Memo scheduling</span>
+        </div>
+      </div>
       <ConnectionForm
         isLoading={isLoading}
         clientReady={Boolean(client)}
@@ -507,7 +513,7 @@ const App = () => {
   );
 
   return (
-    <div className={hasLoadedSession ? 'page-shell review-shell' : 'page-shell'}>
+    <div className={hasLoadedSession ? 'page-shell review-shell' : 'page-shell setup-shell'}>
       {hasLoadedSession ? (
         <main className="review-panel review-panel-full">
           <section className="panel-card review-card review-card-full">
@@ -673,40 +679,13 @@ const App = () => {
           </section>
         </main>
       ) : (
-        <>
-          <section className="hero-panel">
-            <div className="hero-copy-wrap">
-              <p className="eyebrow">Roam Backend Review</p>
-              <h1>Memo review</h1>
-              <p className="hero-copy">
-                Fast review queue backed directly by the Roam API.
-              </p>
-            </div>
-            <div className="summary-strip">
-              <Stat label="Deck" value={selectedTag || 'None'} />
-              <Stat label="Remaining" value={String(remainingCount)} />
-              <Stat label="Status" value={completionState} />
-              <Stat label="Sync" value={pendingWrites > 0 ? `${pendingWrites} pending` : 'Idle'} />
-            </div>
-          </section>
-
-          <div className="layout-grid connect-layout">
-            <aside className="settings-panel">
-              {setupPanel}
-            </aside>
-          </div>
-        </>
+        <main className="setup-shell-main">
+          {setupPanel}
+        </main>
       )}
     </div>
   );
 };
-
-const Stat = ({ label, value }: { label: string; value: string }) => (
-  <div className="stat-card">
-    <span>{label}</span>
-    <strong>{value}</strong>
-  </div>
-);
 
 const ConnectionForm = ({
   isLoading,
