@@ -435,12 +435,16 @@ input:focus {
 }
 
 .block-text,
+.context-line,
+.answer-tree-line,
 .answer-tree,
 .answer-placeholder {
   margin-top: 12px;
   font-size: clamp(1.05rem, 2vw, 1.35rem);
   line-height: 1.55;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .answer-tree {
