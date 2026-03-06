@@ -271,17 +271,6 @@ input:focus {
   font-weight: 600;
 }
 
-.button.mini {
-  min-height: 34px;
-  padding: 8px 12px;
-  font-size: 0.82rem;
-}
-
-.button.mini.active {
-  background: rgba(193, 95, 60, 0.12);
-  border-color: rgba(193, 95, 60, 0.3);
-}
-
 .button.primary {
   background: var(--accent);
   color: #fff9f3;
@@ -356,20 +345,25 @@ input:focus {
 }
 
 .review-card-full {
+  position: relative;
   min-height: 100dvh;
   max-height: 100dvh;
   border-radius: 0;
   border-left: 0;
   border-right: 0;
-  padding: 16px 18px;
+  padding: 12px 14px;
 }
 
-.deck-strip {
+.review-header {
+  position: relative;
+}
+
+.review-meta-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: nowrap;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding-right: 44px;
   min-width: 0;
 }
 
@@ -387,15 +381,15 @@ input:focus {
   border-top: 1px solid rgba(29, 20, 8, 0.08);
 }
 
-.review-setup-drawer {
-  margin-top: 12px;
+.review-setup-screen {
+  min-height: 100%;
 }
 
-.review-setup-drawer .panel-card {
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.72);
+.setup-card {
   box-shadow: none;
   backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 14px;
 }
 
 .status-cluster {
@@ -406,10 +400,11 @@ input:focus {
 
 .status-badge {
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: rgba(29, 20, 8, 0.08);
   color: var(--ink);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 
 .status-badge.muted {
@@ -420,7 +415,7 @@ input:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .crumb {
@@ -513,7 +508,7 @@ input:focus {
 .compact-actions .button {
   min-height: 36px;
   padding: 8px 12px;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
 }
 
 .grade-grid {
@@ -592,6 +587,38 @@ input:focus {
   min-height: 32vh;
 }
 
+.icon-button {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(29, 20, 8, 0.08);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.icon-button:hover {
+  background: rgba(29, 20, 8, 0.12);
+  color: var(--ink);
+}
+
+.icon-button.active {
+  background: rgba(193, 95, 60, 0.14);
+  color: var(--accent-strong);
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 @media (min-width: 1024px) {
   .layout-grid {
     grid-template-columns: 360px minmax(0, 1fr);
@@ -664,25 +691,20 @@ input:focus {
   }
 
   .review-header {
-    gap: 8px;
+    gap: 0;
     padding-bottom: 8px;
     border-bottom: 1px solid rgba(29, 20, 8, 0.08);
   }
 
-  .status-cluster {
-    width: 100%;
-    gap: 6px;
-  }
-
   .status-badge {
-    flex: 1 1 auto;
-    text-align: center;
-    padding: 7px 10px;
-    font-size: 0.7rem;
+    padding: 5px 9px;
+    font-size: 0.68rem;
   }
 
-  .deck-strip {
+  .review-meta-row {
     width: 100%;
+    gap: 5px;
+    padding-right: 38px;
   }
 
   .deck-pill {
@@ -694,8 +716,8 @@ input:focus {
   .deck-pill.compact {
     flex-direction: row;
     align-items: center;
-    padding: 8px 10px;
-    font-size: 0.76rem;
+    padding: 6px 9px;
+    font-size: 0.72rem;
   }
 
   .deck-totals {
@@ -812,7 +834,7 @@ input:focus {
   .review-card-full {
     min-height: 100dvh;
     max-height: 100dvh;
-    padding: 10px 10px calc(8px + env(safe-area-inset-bottom));
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
   }
 
   .review-scroll-area {
@@ -829,5 +851,21 @@ input:focus {
     padding-bottom: calc(6px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, rgba(255, 252, 246, 0), rgba(255, 252, 246, 0.94) 18%, rgba(255, 252, 246, 0.98));
     backdrop-filter: blur(10px);
+  }
+
+  .setup-card {
+    padding: 12px;
+  }
+
+  .icon-button {
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .icon-button svg {
+    width: 14px;
+    height: 14px;
   }
 }

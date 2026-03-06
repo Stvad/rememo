@@ -2,7 +2,7 @@ import React from 'react';
 import { generatePracticeData } from '~/shared/review';
 import { CompletionStatus } from '~/models/practice';
 import { ReviewModes, Session } from '~/models/session';
-import { customFromNow, daysBetween } from '~/utils/date';
+import { daysBetween } from '~/utils/date';
 import { archiveCard, BlockInfo, BlockTreeNode, createClient, fetchBlockInfo, getCurrentCardData, loadReviewSession, ReviewSettings, savePracticeData } from '~/standalone/lib/memoRepository';
 import { renderRoamText } from '~/standalone/lib/text';
 import { RoamApiError } from '~/standalone/lib/roamApi';
@@ -432,7 +432,7 @@ const App = () => {
       : CompletionStatus.Partial;
 
   const setupPanel = (
-    <section className="panel-card">
+    <section className="panel-card setup-card">
       <ConnectionForm
         isLoading={isLoading}
         clientReady={Boolean(client)}
@@ -449,7 +449,7 @@ const App = () => {
         <main className="review-panel review-panel-full">
           <section className="panel-card review-card review-card-full">
             <div className="review-header">
-              <div className="deck-strip" role="tablist" aria-label="Decks">
+              <div className="review-meta-row" role="tablist" aria-label="Decks and review status">
                 {(displaySessionData?.tagsList || []).map((tag) => {
                   const tagStats = displaySessionData?.today.tags[tag];
                   const queueSize = queuesByTag[tag]?.length || 0;
@@ -468,40 +468,38 @@ const App = () => {
                     </button>
                   );
                 })}
-              </div>
-              <div className="status-cluster">
-                <span className="status-badge muted">{completionState}</span>
-                {currentRefUid && currentCardData?.nextDueDate ? (
-                  <span className="status-badge">
-                    {getDueLabel(currentCardData)}
-                  </span>
-                ) : currentRefUid ? (
-                  <span className="status-badge">New</span>
+                <span className="status-badge muted">
+                  {currentRefUid ? `${Math.min(currentIndex + 1, remainingCount)} / ${Math.max(remainingCount, totalCount)}` : '0 / 0'}
+                </span>
+                {currentRefUid ? (
+                  <span className="status-badge">{getCompactDueLabel(currentCardData)}</span>
                 ) : isReviewFinished ? (
                   <span className="status-badge">Finished</span>
                 ) : (
                   <span className="status-badge muted">Waiting</span>
                 )}
-                <span className="status-badge muted">
-                  {currentRefUid ? `${Math.min(currentIndex + 1, remainingCount)} / ${Math.max(remainingCount, totalCount)}` : '0 / 0'}
-                </span>
-                <button
-                  className={showSetup ? 'button ghost mini active' : 'button ghost mini'}
-                  onClick={() => setShowSetup((current) => !current)}
-                >
-                  Setup
-                </button>
+                {pendingWrites > 0 ? (
+                  <span className="status-badge muted">{pendingWrites} sync</span>
+                ) : null}
               </div>
+              <button
+                className={showSetup ? 'icon-button active' : 'icon-button'}
+                onClick={() => setShowSetup((current) => !current)}
+                aria-label={showSetup ? 'Close setup' : 'Open setup'}
+                title={showSetup ? 'Close setup' : 'Open setup'}
+              >
+                <SetupIcon />
+              </button>
             </div>
-
-            {showSetup ? <div className="review-setup-drawer">{setupPanel}</div> : null}
 
             <div className="review-scroll-area">
               {error ? <div className="banner error">{error}</div> : null}
               {syncWarning ? <div className="banner warning">{syncWarning}</div> : null}
               {statusMessage ? <div className="banner success">{statusMessage}</div> : null}
 
-              {currentRefUid && currentBlock ? (
+              {showSetup ? (
+                <div className="review-setup-screen">{setupPanel}</div>
+              ) : currentRefUid && currentBlock ? (
                 <>
                 <div className="breadcrumbs">
                   {currentBlock.breadcrumbs
@@ -565,7 +563,7 @@ const App = () => {
               )}
             </div>
 
-            {currentRefUid ? (
+            {currentRefUid && !showSetup ? (
               <div className="review-footer">
                 <div className={currentBlock && !showAnswers ? 'action-row compact-actions reveal-actions' : 'action-row compact-actions'}>
                   <button
@@ -758,6 +756,15 @@ const ConnectionForm = ({
   </>
 );
 
+const SetupIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.13 7.13 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.49-.42h-3.84a.5.5 0 0 0-.49.42l-.36 2.54c-.58.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.7 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.82 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.49.42h3.84c.24 0 .45-.18.49-.42l.36-2.54c.58-.23 1.13-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
 const BlockTree = ({ tree }: { tree: BlockTreeNode[] }) => (
   <ul className="answer-tree">
     {tree.map((node) => (
@@ -782,13 +789,18 @@ const formatError = (error: unknown) => {
   return 'Unexpected error';
 };
 
-const getDueLabel = (session: Session) => {
+const getCompactDueLabel = (session: Session) => {
   if (!session.nextDueDate) return 'New';
 
   const dayDelta = daysBetween(session.nextDueDate, new Date());
-  if (dayDelta === 0) return 'Due today';
-  if (session.nextDueDate <= new Date()) return `Past due ${customFromNow(session.nextDueDate)}`;
-  return `Next ${customFromNow(session.nextDueDate)}`;
+  if (dayDelta === 0) return 'Today';
+  if (session.nextDueDate <= new Date()) {
+    if (Math.abs(dayDelta) === 1) return 'Due yesterday';
+    return `Due ${Math.abs(dayDelta)}d ago`;
+  }
+
+  if (dayDelta === 1) return 'In 1d';
+  return `In ${dayDelta}d`;
 };
 
 const gradeLabel = (grade: number) => {
