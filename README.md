@@ -2,8 +2,9 @@
 
 Mobile-first spaced repetition for Roam Research, built as a standalone React + TypeScript web app. It talks directly to the Roam backend API, reuses Memo's scheduling/data model, and lets you review cards without opening the full Roam UI.
 
-![Standalone review screen](docs/screenshots/review-revealed-mobile.png)
-![Standalone setup screen](docs/screenshots/setup-mobile.png)
+| Review | Setup |
+| --- | --- |
+| ![Standalone review screen](docs/screenshots/review-revealed-mobile.png) | ![Standalone setup screen](docs/screenshots/setup-mobile.png) |
 
 ## What It Does
 
