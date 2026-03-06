@@ -182,6 +182,7 @@ const App = () => {
   const currentSessions = currentRefUid && displaySessionData ? displaySessionData.practiceData[currentRefUid] || [] : [];
   const currentCardData = getCurrentCardData(currentSessions);
   const currentBlock = currentRefUid ? blockCache[currentRefUid] : undefined;
+  const currentContextLines = currentBlock ? getContextLines(currentBlock) : [];
   const remainingCount = currentQueue.length;
   const totalCount = selectedTag && displaySessionData
     ? (displaySessionData.today.tags[selectedTag]?.due || 0) + (displaySessionData.today.tags[selectedTag]?.new || 0)
@@ -500,11 +501,10 @@ const App = () => {
                 <div className="review-setup-screen">{setupPanel}</div>
               ) : currentRefUid && currentBlock ? (
                 <>
-                {currentBlock.parentBlocks.length ? (
+                {currentContextLines.length ? (
                   <article className="context-block">
-                    <p className="block-label">Parent context</p>
                     <div className="context-stack">
-                      {currentBlock.parentBlocks.map((block, index) => (
+                      {currentContextLines.map((block, index) => (
                         <div key={`${block}-${index}`} className="context-line">
                           {renderRoamText(block, true)}
                         </div>
@@ -514,21 +514,12 @@ const App = () => {
                 ) : null}
 
                 <article className="prompt-block">
-                  <p className="block-label">Prompt</p>
                   <div className="block-text">{renderRoamText(currentBlock.string, showAnswers)}</div>
                 </article>
 
-                {currentBlock.childTree.length > 0 ? (
+                {currentBlock.childTree.length > 0 && showAnswers ? (
                   <article className="answer-block">
-                    <div className="answer-header">
-                      <p className="block-label">Children</p>
-                    </div>
-
-                    {showAnswers ? (
-                      <BlockTree tree={currentBlock.childTree} />
-                    ) : (
-                      <div className="answer-placeholder">Hidden until revealed.</div>
-                    )}
+                    <BlockTree tree={currentBlock.childTree} />
                   </article>
                 ) : null}
                 </>
@@ -745,6 +736,13 @@ const SetupIcon = () => (
     />
   </svg>
 );
+
+const getContextLines = (blockInfo: BlockInfo) => {
+  const pageTitle = blockInfo.breadcrumbs.find((crumb) => crumb[':node/title'])?.[':node/title'];
+  return [pageTitle, ...blockInfo.parentBlocks].filter(
+    (value, index, array): value is string => Boolean(value) && array.indexOf(value) === index
+  );
+};
 
 const BlockTree = ({ tree }: { tree: BlockTreeNode[] }) => (
   <ul className="answer-tree">
