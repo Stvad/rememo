@@ -12,7 +12,8 @@ export const supermemo = (
   if (grade === 0) {
     nextInterval = 0;
     nextRepetition = 0;
-  } else if (grade < 3) {
+    // todo: Note this is different from the roam/memo, adjusting this to work closer to how the roam-toolkit implementation works
+  } else if (grade < 2) {
     nextInterval = 1;
     nextRepetition = 0;
   } else {
