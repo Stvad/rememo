@@ -20,6 +20,7 @@ const STORAGE_KEY = 'roam-memo-standalone-settings';
 const ARCHIVE_TAG = 'memo/archived';
 const REVIEW_IN_ROAM_TAG = 'memo/to-review';
 const SUPPORT_URL = 'https://buymeacoffee.com/vlad.sitalo';
+const PRELOAD_AHEAD_COUNT = 3;
 type ReviewSessionData = Awaited<ReturnType<typeof loadReviewSession>>;
 type OptimisticUpdate = {
   id: number;
@@ -131,6 +132,8 @@ const App = () => {
   const didAutoConnectRef = React.useRef(false);
   const optimisticUpdateIdRef = React.useRef(0);
   const swipeStateRef = React.useRef<SwipeState | null>(null);
+  const blockFetchScopeRef = React.useRef(0);
+  const pendingBlockFetchesRef = React.useRef<Record<string, Promise<void>>>({});
 
   const client = React.useMemo(() => {
     if (!settings.graph.trim() || !settings.token.trim()) return null;
@@ -148,6 +151,8 @@ const App = () => {
 
     try {
       const nextSession = await loadReviewSession(client, settings);
+      blockFetchScopeRef.current += 1;
+      pendingBlockFetchesRef.current = {};
       setSessionData(nextSession);
       setSelectedTag((current) => current || nextSession.tagsList[0] || '');
       setCurrentIndex(0);
@@ -183,7 +188,10 @@ const App = () => {
     ) as Record<string, string[]>;
   }, [displaySessionData]);
 
-  const currentQueue = selectedTag ? queuesByTag[selectedTag] || [] : [];
+  const currentQueue = React.useMemo(
+    () => (selectedTag ? queuesByTag[selectedTag] || [] : []),
+    [queuesByTag, selectedTag]
+  );
   const currentRefUid = currentQueue[currentIndex];
   const currentSessions = currentRefUid && displaySessionData ? displaySessionData.practiceData[currentRefUid] || [] : [];
   const currentCardData = getCurrentCardData(currentSessions);
@@ -221,27 +229,46 @@ const App = () => {
     }
   }, [currentIndex, currentQueue.length]);
 
+  const preloadBlock = React.useCallback(
+    (refUid: string, { surfaceErrors = false }: { surfaceErrors?: boolean } = {}) => {
+      if (!client || !refUid || blockCache[refUid]) return;
+
+      const existingFetch = pendingBlockFetchesRef.current[refUid];
+      if (existingFetch) return existingFetch;
+
+      const fetchScope = blockFetchScopeRef.current;
+      const request = fetchBlockInfo(client, refUid)
+        .then((info) => {
+          if (blockFetchScopeRef.current !== fetchScope) return;
+
+          setBlockCache((current) => {
+            if (current[refUid]) return current;
+            return { ...current, [refUid]: info };
+          });
+        })
+        .catch((caughtError) => {
+          if (blockFetchScopeRef.current === fetchScope && surfaceErrors) {
+            setError(formatError(caughtError));
+          }
+        })
+        .finally(() => {
+          delete pendingBlockFetchesRef.current[refUid];
+        });
+
+      pendingBlockFetchesRef.current[refUid] = request;
+      return request;
+    },
+    [blockCache, client]
+  );
+
   React.useEffect(() => {
-    if (!client || !currentRefUid || blockCache[currentRefUid]) return;
+    if (!client || !currentQueue.length) return;
 
-    let cancelled = false;
-
-    fetchBlockInfo(client, currentRefUid)
-      .then((info) => {
-        if (!cancelled) {
-          setBlockCache((current) => ({ ...current, [currentRefUid]: info }));
-        }
-      })
-      .catch((caughtError) => {
-        if (!cancelled) {
-          setError(formatError(caughtError));
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [blockCache, client, currentRefUid]);
+    const upcomingUids = currentQueue.slice(currentIndex, currentIndex + PRELOAD_AHEAD_COUNT + 1);
+    upcomingUids.forEach((refUid, index) => {
+      void preloadBlock(refUid, { surfaceErrors: index === 0 });
+    });
+  }, [client, currentIndex, currentQueue, preloadBlock]);
 
   React.useEffect(() => {
     if (!currentRefUid) {
