@@ -84,9 +84,10 @@ describe('supermemo: simulate practice', () => {
       expect(result0.interval).toBeLessThan(result1.interval);
     });
 
-    test('1 and two both reset interval to 1 (review tomorrow)', () => {
+    test('Grade 1 resets, but Grade 2 preserves a forward interval', () => {
       expect(result1.interval).toBe(1);
-      expect(result2.interval).toBe(1);
+      expect(result2.interval).toBeGreaterThan(result1.interval);
+      expect(result2.repetition).toBeGreaterThan(result1.repetition);
     });
 
     test('Grade 1 should be relative to Grade 2', () => {
