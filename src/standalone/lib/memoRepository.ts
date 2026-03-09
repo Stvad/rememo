@@ -24,13 +24,13 @@ export interface ReviewSessionData {
   peerOrigin: string;
 }
 
-export interface ParentMigrationSummary {
-  totalCandidates: number;
-  tagsMoved: number;
-  refsRepointed: number;
-  missingMetadata: number;
-  conflicts: number;
-  skippedPageChildren: number;
+export interface CardParentMigrationResult {
+  parentUid?: string;
+  tagMoved: boolean;
+  refRepointed: boolean;
+  missingMetadata: boolean;
+  conflict: boolean;
+  skippedReason?: string;
 }
 
 export interface BlockTreeNode {
@@ -44,6 +44,9 @@ export interface BlockInfo {
   childTree: BlockTreeNode[];
   breadcrumbs: Array<{ ':block/uid'?: string; ':node/title'?: string; ':block/string'?: string }>;
   parentBlocks: string[];
+  directParentUid?: string;
+  directParentString?: string;
+  directParentTitle?: string;
   refUid: string;
 }
 
@@ -171,20 +174,6 @@ const cardUidsWithTagQuery = `[
     [?childBlock :block/refs ?tagPage]
 ]`;
 
-const directTaggedBlocksQuery = `[
-  :find ?childUid ?childString ?parentUid ?parentString ?parentTitle
-  :in $ ?tag
-  :where
-    [?tagPage :node/title ?tag]
-    [?child :block/refs ?tagPage]
-    [?child :block/uid ?childUid]
-    [?child :block/string ?childString]
-    [?parent :block/children ?child]
-    [?parent :block/uid ?parentUid]
-    [(get-else $ ?parent :block/string "") ?parentString]
-    [(get-else $ ?parent :node/title "") ?parentTitle]
-]`;
-
 const blockInfoQuery = `[
   :find (pull ?block [
     :block/string
@@ -205,6 +194,17 @@ const parentChainInfoQuery = `[
   :where
     [?block :block/uid ?refId]
     [?block :block/parents ?parentIds]
+]`;
+
+const directParentInfoQuery = `[
+  :find ?parentUid ?parentString ?parentTitle
+  :in $ ?refId
+  :where
+    [?block :block/uid ?refId]
+    [?parent :block/children ?block]
+    [?parent :block/uid ?parentUid]
+    [(get-else $ ?parent :block/string "") ?parentString]
+    [(get-else $ ?parent :node/title "") ?parentTitle]
 ]`;
 
 const getPageUid = async (client: RoamApiClient, title: string) => {
@@ -271,22 +271,6 @@ const getCardUidsWithTag = async (
   }
 
   return uids;
-};
-
-const getDirectTaggedBlocks = async (client: RoamApiClient, tag: string) => {
-  const results = await client.query<Array<[string, string, string, string, string]>>(
-    directTaggedBlocksQuery,
-    [tag]
-  );
-
-  return results.map(([childUid, childString, parentUid, parentString, parentTitle]) => ({
-    tag,
-    childUid,
-    childString,
-    parentUid,
-    parentString,
-    parentTitle,
-  }));
 };
 
 const getCardUidsWithAnyTag = async (
@@ -424,9 +408,10 @@ export const loadReviewSession = async (
 };
 
 export const fetchBlockInfo = async (client: RoamApiClient, refUid: string): Promise<BlockInfo> => {
-  const [blockRows, breadcrumbRows] = await Promise.all([
+  const [blockRows, breadcrumbRows, directParentRows] = await Promise.all([
     client.query<any[][]>(blockInfoQuery, [refUid]),
     client.query<any[][]>(parentChainInfoQuery, [refUid]),
+    client.query<Array<[string, string, string]>>(directParentInfoQuery, [refUid]),
   ]);
 
   const blockInfo = blockRows[0]?.[0];
@@ -445,12 +430,16 @@ export const fetchBlockInfo = async (client: RoamApiClient, refUid: string): Pro
   const parentBlocks = breadcrumbs
     .map((crumb) => crumb[':block/string'])
     .filter(Boolean);
+  const [directParentUid, directParentString, directParentTitle] = directParentRows[0] || [];
 
   return {
     string: getBlockString(blockInfo),
     childTree,
     breadcrumbs,
     parentBlocks,
+    directParentUid,
+    directParentString,
+    directParentTitle,
     refUid,
   };
 };
@@ -624,102 +613,116 @@ export const archiveCard = async (
   await batchActionsWrite(client, actions);
 };
 
-export const migrateChildTaggedCardsToParents = async (
+export const migrateCardToParent = async (
   client: RoamApiClient,
   {
+    blockInfo,
     dataPageTitle,
-    tagsListString,
-  }: Pick<ReviewSettings, 'dataPageTitle' | 'tagsListString'>
-): Promise<ParentMigrationSummary> => {
-  const tags = splitTagsList(tagsListString);
-  const summary: ParentMigrationSummary = {
-    totalCandidates: 0,
-    tagsMoved: 0,
-    refsRepointed: 0,
-    missingMetadata: 0,
-    conflicts: 0,
-    skippedPageChildren: 0,
-  };
-
-  const dataBlockUid = await getBlockOnPage(client, dataPageTitle, 'data');
-
-  for (const tag of tags) {
-    const taggedBlocks = await getDirectTaggedBlocks(client, tag);
-
-    for (const block of taggedBlocks) {
-      if (!block.parentString.trim()) {
-        summary.skippedPageChildren += 1;
-        continue;
-      }
-
-      summary.totalCandidates += 1;
-
-      const actions: Array<Record<string, unknown>> = [];
-      const nextChildString = stripTagReference(block.childString, tag);
-      const nextParentString = appendTagReference(block.parentString, tag);
-
-      if (nextChildString !== block.childString) {
-        actions.push({
-          action: 'update-block',
-          block: {
-            uid: block.childUid,
-            string: nextChildString,
-          },
-        });
-      }
-
-      if (nextParentString !== block.parentString) {
-        actions.push({
-          action: 'update-block',
-          block: {
-            uid: block.parentUid,
-            string: nextParentString,
-          },
-        });
-      }
-
-      const hadTagMove = actions.length > 0;
-
-      if (dataBlockUid) {
-        const childCardDataBlockUid = await getChildBlock(client, dataBlockUid, `((${block.childUid}))`);
-
-        if (childCardDataBlockUid) {
-          const parentCardDataBlockUid = await getChildBlock(
-            client,
-            dataBlockUid,
-            `((${block.parentUid}))`
-          );
-
-          if (parentCardDataBlockUid) {
-            summary.conflicts += 1;
-          } else {
-            actions.push({
-              action: 'update-block',
-              block: {
-                uid: childCardDataBlockUid,
-                string: `((${block.parentUid}))`,
-              },
-            });
-            summary.refsRepointed += 1;
-          }
-        } else {
-          summary.missingMetadata += 1;
-        }
-      } else {
-        summary.missingMetadata += 1;
-      }
-
-      if (actions.length) {
-        await batchActionsWrite(client, actions);
-      }
-
-      if (hadTagMove) {
-        summary.tagsMoved += 1;
-      }
-    }
+    selectedTag,
+  }: {
+    blockInfo: BlockInfo;
+    dataPageTitle: string;
+    selectedTag: string;
+  }
+): Promise<CardParentMigrationResult> => {
+  if (!selectedTag.trim()) {
+    return {
+      tagMoved: false,
+      refRepointed: false,
+      missingMetadata: false,
+      conflict: false,
+      skippedReason: 'Pick a deck before migrating a card.',
+    };
   }
 
-  return summary;
+  if (!hasTagReference(blockInfo.string, selectedTag)) {
+    return {
+      tagMoved: false,
+      refRepointed: false,
+      missingMetadata: false,
+      conflict: false,
+      skippedReason: `This card does not directly contain [[${selectedTag}]].`,
+    };
+  }
+
+  if (!blockInfo.directParentUid || !blockInfo.directParentString?.trim()) {
+    return {
+      tagMoved: false,
+      refRepointed: false,
+      missingMetadata: false,
+      conflict: false,
+      skippedReason: 'This card is already top-level, so there is no parent block to migrate to.',
+    };
+  }
+
+  const dataBlockUid = await getBlockOnPage(client, dataPageTitle, 'data');
+  const childCardDataBlockUid = dataBlockUid
+    ? await getChildBlock(client, dataBlockUid, `((${blockInfo.refUid}))`)
+    : '';
+  const parentCardDataBlockUid =
+    dataBlockUid && blockInfo.directParentUid
+      ? await getChildBlock(client, dataBlockUid, `((${blockInfo.directParentUid}))`)
+      : '';
+
+  if (childCardDataBlockUid && parentCardDataBlockUid) {
+    return {
+      parentUid: blockInfo.directParentUid,
+      tagMoved: false,
+      refRepointed: false,
+      missingMetadata: false,
+      conflict: true,
+      skippedReason:
+        'The parent card already has its own review history, so this migration was skipped to avoid conflicting metadata.',
+    };
+  }
+
+  const actions: Array<Record<string, unknown>> = [];
+  const nextChildString = stripTagReference(blockInfo.string, selectedTag);
+  const nextParentString = appendTagReference(blockInfo.directParentString, selectedTag);
+
+  if (nextChildString !== blockInfo.string) {
+    actions.push({
+      action: 'update-block',
+      block: {
+        uid: blockInfo.refUid,
+        string: nextChildString,
+      },
+    });
+  }
+
+  if (nextParentString !== blockInfo.directParentString) {
+    actions.push({
+      action: 'update-block',
+      block: {
+        uid: blockInfo.directParentUid,
+        string: nextParentString,
+      },
+    });
+  }
+
+  let refRepointed = false;
+  const missingMetadata = !childCardDataBlockUid;
+
+  if (childCardDataBlockUid && blockInfo.directParentUid) {
+    actions.push({
+      action: 'update-block',
+      block: {
+        uid: childCardDataBlockUid,
+        string: `((${blockInfo.directParentUid}))`,
+      },
+    });
+    refRepointed = true;
+  }
+
+  await batchActionsWrite(client, actions);
+
+  return {
+    parentUid: blockInfo.directParentUid,
+    tagMoved: true,
+    refRepointed,
+    missingMetadata,
+    conflict: false,
+  };
 };
 
 export const getCurrentCardData = (sessions: Session[]) =>

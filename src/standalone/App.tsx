@@ -2,7 +2,7 @@ import React from 'react';
 import { generatePracticeData } from '~/shared/review';
 import { CompletionStatus } from '~/models/practice';
 import { ReviewModes, Session } from '~/models/session';
-import { archiveCard, BlockInfo, BlockTreeNode, createClient, fetchBlockInfo, getCurrentCardData, loadReviewSession, migrateChildTaggedCardsToParents, ParentMigrationSummary, ReviewSettings, savePracticeData, splitTagsList } from '~/standalone/lib/memoRepository';
+import { archiveCard, BlockInfo, BlockTreeNode, createClient, fetchBlockInfo, getCurrentCardData, loadReviewSession, migrateCardToParent, ReviewSettings, savePracticeData } from '~/standalone/lib/memoRepository';
 import { renderRoamText } from '~/standalone/lib/text';
 import { RoamApiError } from '~/standalone/lib/roamApi';
 
@@ -129,8 +129,7 @@ const App = () => {
   const [pendingWrites, setPendingWrites] = React.useState(0);
   const [syncWarning, setSyncWarning] = React.useState('');
   const [error, setError] = React.useState('');
-  const [isMigrating, setIsMigrating] = React.useState(false);
-  const [migrationMessage, setMigrationMessage] = React.useState('');
+  const [isMigratingCard, setIsMigratingCard] = React.useState(false);
   const didAutoConnectRef = React.useRef(false);
   const optimisticUpdateIdRef = React.useRef(0);
   const swipeStateRef = React.useRef<SwipeState | null>(null);
@@ -142,7 +141,12 @@ const App = () => {
     return createClient({ graph: settings.graph, token: settings.token });
   }, [settings.graph, settings.token]);
 
-  const refresh = React.useCallback(async () => {
+  const refresh = React.useCallback(async (options?: {
+    selectedTag?: string;
+    preferredRefUid?: string;
+    fallbackIndex?: number;
+    keepSetupOpen?: boolean;
+  }) => {
     if (!client) {
       setError('Enter a graph and token to start.');
       return;
@@ -155,19 +159,38 @@ const App = () => {
       const nextSession = await loadReviewSession(client, settings);
       blockFetchScopeRef.current += 1;
       pendingBlockFetchesRef.current = {};
+      const nextSelectedTag =
+        options?.selectedTag && nextSession.tagsList.includes(options.selectedTag)
+          ? options.selectedTag
+          : selectedTag && nextSession.tagsList.includes(selectedTag)
+            ? selectedTag
+            : nextSession.tagsList[0] || '';
+      const nextQueue = nextSelectedTag
+        ? [
+            ...(nextSession.today.tags[nextSelectedTag]?.dueUids || []),
+            ...(nextSession.today.tags[nextSelectedTag]?.newUids || []),
+          ]
+        : [];
+      const preferredIndex =
+        options?.preferredRefUid ? nextQueue.indexOf(options.preferredRefUid) : -1;
+      const fallbackIndex = Math.min(
+        options?.fallbackIndex ?? 0,
+        Math.max(nextQueue.length - 1, 0)
+      );
+
       setSessionData(nextSession);
-      setSelectedTag((current) => current || nextSession.tagsList[0] || '');
-      setCurrentIndex(0);
+      setSelectedTag(nextSelectedTag);
+      setCurrentIndex(preferredIndex >= 0 ? preferredIndex : fallbackIndex);
       setOptimisticUpdates([]);
       setBlockCache({});
       setSyncWarning('');
-      setShowSetup(false);
+      setShowSetup(options?.keepSetupOpen ?? false);
     } catch (caughtError) {
       setError(formatError(caughtError));
     } finally {
       setIsLoading(false);
     }
-  }, [client, settings]);
+  }, [client, selectedTag, settings]);
 
   const displaySessionData = React.useMemo(() => {
     if (!sessionData) return null;
@@ -532,41 +555,48 @@ const App = () => {
     swipeStateRef.current = null;
   }, []);
 
-  const handleParentMigration = React.useCallback(async () => {
-    if (!client) {
-      setError('Enter a graph and token to start.');
-      return;
-    }
-
-    const tags = splitTagsList(settings.tagsListString);
-    if (!tags.length) {
-      setError('Enter at least one tag to migrate.');
-      return;
-    }
+  const handleMigrateCurrentCard = React.useCallback(async () => {
+    if (!client || !currentRefUid || !currentBlock || !selectedTag) return;
 
     const confirmed = window.confirm(
-      `Move ${tags.join(', ')} from child blocks to their parents and repoint ${settings.dataPageTitle} history where possible?`
+      `Move [[${selectedTag}]] from this card onto its parent block and repoint ${settings.dataPageTitle} history if possible?`
     );
 
     if (!confirmed) return;
 
-    setIsMigrating(true);
+    setIsMigratingCard(true);
     setError('');
-    setMigrationMessage('');
+    setSyncWarning('');
 
     try {
-      const summary = await migrateChildTaggedCardsToParents(client, settings);
-      setMigrationMessage(formatParentMigrationSummary(summary, tags));
+      const result = await migrateCardToParent(client, {
+        blockInfo: currentBlock,
+        dataPageTitle: settings.dataPageTitle,
+        selectedTag,
+      });
 
-      if (hasLoadedSession) {
-        await refresh();
+      if (result.skippedReason) {
+        setError(result.skippedReason);
+        return;
       }
+
+      if (result.missingMetadata) {
+        setSyncWarning(
+          'Moved the deck tag to the parent block, but this card had no roam/memo history to repoint.'
+        );
+      }
+
+      await refresh({
+        selectedTag,
+        preferredRefUid: result.parentUid,
+        fallbackIndex: currentIndex,
+      });
     } catch (caughtError) {
       setError(formatError(caughtError));
     } finally {
-      setIsMigrating(false);
+      setIsMigratingCard(false);
     }
-  }, [client, hasLoadedSession, refresh, settings]);
+  }, [client, currentBlock, currentIndex, currentRefUid, refresh, selectedTag, settings.dataPageTitle]);
 
   const setupPanel = (
     <section className="panel-card setup-card">
@@ -578,11 +608,8 @@ const App = () => {
       </div>
       <ConnectionForm
         isLoading={isLoading}
-        isMigrating={isMigrating}
         clientReady={Boolean(client)}
-        migrationMessage={migrationMessage}
         onConnect={refresh}
-        onMigrateParentCards={handleParentMigration}
         settings={settings}
         setSettings={setSettings}
       />
@@ -710,7 +737,7 @@ const App = () => {
 
             {currentRefUid && !showSetup ? (
               <div className="review-footer">
-                <div className={currentBlock && !showAnswers ? 'action-row compact-actions reveal-actions' : 'action-row compact-actions compact-three-actions'}>
+                <div className={currentBlock && !showAnswers ? 'action-row compact-actions reveal-actions' : 'action-row compact-actions compact-four-actions'}>
                   <button
                     className="button ghost"
                     onClick={() =>
@@ -719,6 +746,15 @@ const App = () => {
                     disabled={!currentRefUid}
                   >
                     Skip
+                  </button>
+                  <button
+                    className="button ghost icon-action-button"
+                    onClick={() => void handleMigrateCurrentCard()}
+                    aria-label="Move card to parent"
+                    title="Move card to parent"
+                    disabled={isMigratingCard}
+                  >
+                    <ParentMigrationIcon />
                   </button>
                   <button
                     className="button ghost icon-action-button"
@@ -781,20 +817,14 @@ const App = () => {
 
 const ConnectionForm = ({
   isLoading,
-  isMigrating,
   clientReady,
-  migrationMessage,
   onConnect,
-  onMigrateParentCards,
   settings,
   setSettings,
 }: {
   isLoading: boolean;
-  isMigrating: boolean;
   clientReady: boolean;
-  migrationMessage: string;
   onConnect: () => void;
-  onMigrateParentCards: () => void;
   settings: ReviewSettings;
   setSettings: React.Dispatch<React.SetStateAction<ReviewSettings>>;
 }) => (
@@ -883,24 +913,6 @@ const ConnectionForm = ({
         Shuffle cards
       </label>
     </div>
-    <div className="migration-card">
-      <div className="migration-copy">
-        <h3>Migration</h3>
-        <p>
-          Move the current deck tag from tagged child blocks onto their parent blocks and repoint
-          existing <code>roam/memo</code> history to the parent card when there is no parent-side
-          metadata conflict.
-        </p>
-      </div>
-      <button
-        className="button ghost"
-        onClick={onMigrateParentCards}
-        disabled={isLoading || isMigrating || !clientReady}
-      >
-        {isMigrating ? 'Migrating...' : 'Move child tags to parent cards'}
-      </button>
-      {migrationMessage ? <p className="migration-result">{migrationMessage}</p> : null}
-    </div>
   </>
 );
 
@@ -926,6 +938,15 @@ const RoamReviewIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path
       d="M6.5 3A2.5 2.5 0 0 0 4 5.5v13A2.5 2.5 0 0 0 6.5 21H18a2 2 0 0 0 2-2V8.83a2 2 0 0 0-.59-1.41l-3.83-3.83A2 2 0 0 0 14.17 3H6.5Zm0 2h7v3a2 2 0 0 0 2 2h3v9H6.5a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5Zm2 7h7a1 1 0 1 1 0 2h-7a1 1 0 1 1 0-2Zm0 4h7a1 1 0 1 1 0 2h-7a1 1 0 1 1 0-2Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const ParentMigrationIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="M9.2 6.2a1 1 0 0 1 1.4 0l3.8 3.8a1 1 0 1 1-1.4 1.4L11 9.41V15a3 3 0 0 1-3 3H5a1 1 0 1 1 0-2h3a1 1 0 0 0 1-1V9.41l-2 1.99a1 1 0 1 1-1.4-1.42l3.6-3.78ZM14 6h5a1 1 0 1 1 0 2h-5a1 1 0 1 1 0-2Zm2 5h3a1 1 0 1 1 0 2h-3a1 1 0 1 1 0-2Zm-1 5h4a1 1 0 1 1 0 2h-4a1 1 0 1 1 0-2Z"
       fill="currentColor"
     />
   </svg>
@@ -974,31 +995,6 @@ const formatError = (error: unknown) => {
 
   if (error instanceof Error) return error.message;
   return 'Unexpected error';
-};
-
-const formatParentMigrationSummary = (summary: ParentMigrationSummary, tags: string[]) => {
-  if (summary.totalCandidates === 0 && summary.skippedPageChildren === 0) {
-    return `No directly tagged child cards were found for ${tags.join(', ')}.`;
-  }
-
-  const parts = [
-    `${summary.tagsMoved} tag move${summary.tagsMoved === 1 ? '' : 's'}`,
-    `${summary.refsRepointed} metadata ref${summary.refsRepointed === 1 ? '' : 's'} updated`,
-  ];
-
-  if (summary.missingMetadata > 0) {
-    parts.push(`${summary.missingMetadata} card${summary.missingMetadata === 1 ? '' : 's'} had no ${'`roam/memo`'} entry`);
-  }
-
-  if (summary.conflicts > 0) {
-    parts.push(`${summary.conflicts} conflict${summary.conflicts === 1 ? '' : 's'} skipped because the parent already had history`);
-  }
-
-  if (summary.skippedPageChildren > 0) {
-    parts.push(`${summary.skippedPageChildren} top-level tagged block${summary.skippedPageChildren === 1 ? '' : 's'} left unchanged`);
-  }
-
-  return parts.join('. ') + '.';
 };
 
 const getCalendarDayDelta = (targetDate: Date, referenceDate = new Date()) => {
