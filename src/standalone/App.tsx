@@ -558,12 +558,6 @@ const App = () => {
   const handleMigrateCurrentCard = React.useCallback(async () => {
     if (!client || !currentRefUid || !currentBlock || !selectedTag) return;
 
-    const confirmed = window.confirm(
-      `Move [[${selectedTag}]] from this card onto its parent block and repoint ${settings.dataPageTitle} history if possible?`
-    );
-
-    if (!confirmed) return;
-
     setIsMigratingCard(true);
     setError('');
     setSyncWarning('');
