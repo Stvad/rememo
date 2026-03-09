@@ -504,12 +504,27 @@ const App = () => {
     if (deltaX > 0) {
       if (!showAnswers && currentBlock) {
         setShowAnswers(true);
+      } else if (showAnswers) {
+        if (currentCardData.reviewMode === ReviewModes.FixedInterval) {
+          void handleFixedIntervalReview();
+        } else {
+          void handleGrade(4);
+        }
       }
       return;
     }
 
     void handleReviewInRoam();
-  }, [currentBlock, currentRefUid, handleReviewInRoam, showAnswers, showSetup]);
+  }, [
+    currentBlock,
+    currentCardData.reviewMode,
+    currentRefUid,
+    handleFixedIntervalReview,
+    handleGrade,
+    handleReviewInRoam,
+    showAnswers,
+    showSetup,
+  ]);
 
   const handleTouchCancel = React.useCallback(() => {
     swipeStateRef.current = null;
