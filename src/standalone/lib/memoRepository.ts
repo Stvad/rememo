@@ -24,6 +24,15 @@ export interface ReviewSessionData {
   peerOrigin: string;
 }
 
+export interface ParentMigrationSummary {
+  totalCandidates: number;
+  tagsMoved: number;
+  refsRepointed: number;
+  missingMetadata: number;
+  conflicts: number;
+  skippedPageChildren: number;
+}
+
 export interface BlockTreeNode {
   uid: string;
   string: string;
@@ -162,6 +171,20 @@ const cardUidsWithTagQuery = `[
     [?childBlock :block/refs ?tagPage]
 ]`;
 
+const directTaggedBlocksQuery = `[
+  :find ?childUid ?childString ?parentUid ?parentString ?parentTitle
+  :in $ ?tag
+  :where
+    [?tagPage :node/title ?tag]
+    [?child :block/refs ?tagPage]
+    [?child :block/uid ?childUid]
+    [?child :block/string ?childString]
+    [?parent :block/children ?child]
+    [?parent :block/uid ?parentUid]
+    [(get-else $ ?parent :block/string "") ?parentString]
+    [(get-else $ ?parent :node/title "") ?parentTitle]
+]`;
+
 const blockInfoQuery = `[
   :find (pull ?block [
     :block/string
@@ -250,6 +273,22 @@ const getCardUidsWithTag = async (
   return uids;
 };
 
+const getDirectTaggedBlocks = async (client: RoamApiClient, tag: string) => {
+  const results = await client.query<Array<[string, string, string, string, string]>>(
+    directTaggedBlocksQuery,
+    [tag]
+  );
+
+  return results.map(([childUid, childString, parentUid, parentString, parentTitle]) => ({
+    tag,
+    childUid,
+    childString,
+    parentUid,
+    parentString,
+    parentTitle,
+  }));
+};
+
 const getCardUidsWithAnyTag = async (
   client: RoamApiClient,
   dataPageTitle: string,
@@ -265,6 +304,33 @@ const getCardUidsWithAnyTag = async (
   }
 
   return combined;
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const hasTagReference = (text: string, tag: string) => {
+  const normalized = escapeRegExp(tag);
+  return (
+    new RegExp(`(^|\\s)#${normalized}(?=\\s|$)`).test(text) ||
+    new RegExp(`\\[\\[${normalized}\\]\\]`).test(text)
+  );
+};
+
+const stripTagReference = (text: string, tag: string) => {
+  const normalized = escapeRegExp(tag);
+
+  return text
+    .replace(new RegExp(`(^|\\s)#${normalized}(?=\\s|$)`, 'g'), '$1')
+    .replace(new RegExp(`(^|\\s)\\[\\[${normalized}\\]\\](?=\\s|$)`, 'g'), '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+};
+
+const appendTagReference = (text: string, tag: string) => {
+  if (hasTagReference(text, tag)) return text;
+
+  const tagReference = `[[${tag}]]`;
+  return text.trim() ? `${text.trim()} ${tagReference}` : tagReference;
 };
 
 const getSessionData = async (
@@ -556,6 +622,104 @@ export const archiveCard = async (
   }
 
   await batchActionsWrite(client, actions);
+};
+
+export const migrateChildTaggedCardsToParents = async (
+  client: RoamApiClient,
+  {
+    dataPageTitle,
+    tagsListString,
+  }: Pick<ReviewSettings, 'dataPageTitle' | 'tagsListString'>
+): Promise<ParentMigrationSummary> => {
+  const tags = splitTagsList(tagsListString);
+  const summary: ParentMigrationSummary = {
+    totalCandidates: 0,
+    tagsMoved: 0,
+    refsRepointed: 0,
+    missingMetadata: 0,
+    conflicts: 0,
+    skippedPageChildren: 0,
+  };
+
+  const dataBlockUid = await getBlockOnPage(client, dataPageTitle, 'data');
+
+  for (const tag of tags) {
+    const taggedBlocks = await getDirectTaggedBlocks(client, tag);
+
+    for (const block of taggedBlocks) {
+      if (!block.parentString.trim()) {
+        summary.skippedPageChildren += 1;
+        continue;
+      }
+
+      summary.totalCandidates += 1;
+
+      const actions: Array<Record<string, unknown>> = [];
+      const nextChildString = stripTagReference(block.childString, tag);
+      const nextParentString = appendTagReference(block.parentString, tag);
+
+      if (nextChildString !== block.childString) {
+        actions.push({
+          action: 'update-block',
+          block: {
+            uid: block.childUid,
+            string: nextChildString,
+          },
+        });
+      }
+
+      if (nextParentString !== block.parentString) {
+        actions.push({
+          action: 'update-block',
+          block: {
+            uid: block.parentUid,
+            string: nextParentString,
+          },
+        });
+      }
+
+      const hadTagMove = actions.length > 0;
+
+      if (dataBlockUid) {
+        const childCardDataBlockUid = await getChildBlock(client, dataBlockUid, `((${block.childUid}))`);
+
+        if (childCardDataBlockUid) {
+          const parentCardDataBlockUid = await getChildBlock(
+            client,
+            dataBlockUid,
+            `((${block.parentUid}))`
+          );
+
+          if (parentCardDataBlockUid) {
+            summary.conflicts += 1;
+          } else {
+            actions.push({
+              action: 'update-block',
+              block: {
+                uid: childCardDataBlockUid,
+                string: `((${block.parentUid}))`,
+              },
+            });
+            summary.refsRepointed += 1;
+          }
+        } else {
+          summary.missingMetadata += 1;
+        }
+      } else {
+        summary.missingMetadata += 1;
+      }
+
+      if (actions.length) {
+        await batchActionsWrite(client, actions);
+      }
+
+      if (hadTagMove) {
+        summary.tagsMoved += 1;
+      }
+    }
+  }
+
+  return summary;
 };
 
 export const getCurrentCardData = (sessions: Session[]) =>

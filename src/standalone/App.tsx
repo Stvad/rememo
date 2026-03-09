@@ -2,7 +2,7 @@ import React from 'react';
 import { generatePracticeData } from '~/shared/review';
 import { CompletionStatus } from '~/models/practice';
 import { ReviewModes, Session } from '~/models/session';
-import { archiveCard, BlockInfo, BlockTreeNode, createClient, fetchBlockInfo, getCurrentCardData, loadReviewSession, ReviewSettings, savePracticeData } from '~/standalone/lib/memoRepository';
+import { archiveCard, BlockInfo, BlockTreeNode, createClient, fetchBlockInfo, getCurrentCardData, loadReviewSession, migrateChildTaggedCardsToParents, ParentMigrationSummary, ReviewSettings, savePracticeData, splitTagsList } from '~/standalone/lib/memoRepository';
 import { renderRoamText } from '~/standalone/lib/text';
 import { RoamApiError } from '~/standalone/lib/roamApi';
 
@@ -129,6 +129,8 @@ const App = () => {
   const [pendingWrites, setPendingWrites] = React.useState(0);
   const [syncWarning, setSyncWarning] = React.useState('');
   const [error, setError] = React.useState('');
+  const [isMigrating, setIsMigrating] = React.useState(false);
+  const [migrationMessage, setMigrationMessage] = React.useState('');
   const didAutoConnectRef = React.useRef(false);
   const optimisticUpdateIdRef = React.useRef(0);
   const swipeStateRef = React.useRef<SwipeState | null>(null);
@@ -530,6 +532,42 @@ const App = () => {
     swipeStateRef.current = null;
   }, []);
 
+  const handleParentMigration = React.useCallback(async () => {
+    if (!client) {
+      setError('Enter a graph and token to start.');
+      return;
+    }
+
+    const tags = splitTagsList(settings.tagsListString);
+    if (!tags.length) {
+      setError('Enter at least one tag to migrate.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Move ${tags.join(', ')} from child blocks to their parents and repoint ${settings.dataPageTitle} history where possible?`
+    );
+
+    if (!confirmed) return;
+
+    setIsMigrating(true);
+    setError('');
+    setMigrationMessage('');
+
+    try {
+      const summary = await migrateChildTaggedCardsToParents(client, settings);
+      setMigrationMessage(formatParentMigrationSummary(summary, tags));
+
+      if (hasLoadedSession) {
+        await refresh();
+      }
+    } catch (caughtError) {
+      setError(formatError(caughtError));
+    } finally {
+      setIsMigrating(false);
+    }
+  }, [client, hasLoadedSession, refresh, settings]);
+
   const setupPanel = (
     <section className="panel-card setup-card">
       <div className="setup-intro">
@@ -540,8 +578,11 @@ const App = () => {
       </div>
       <ConnectionForm
         isLoading={isLoading}
+        isMigrating={isMigrating}
         clientReady={Boolean(client)}
+        migrationMessage={migrationMessage}
         onConnect={refresh}
+        onMigrateParentCards={handleParentMigration}
         settings={settings}
         setSettings={setSettings}
       />
@@ -740,14 +781,20 @@ const App = () => {
 
 const ConnectionForm = ({
   isLoading,
+  isMigrating,
   clientReady,
+  migrationMessage,
   onConnect,
+  onMigrateParentCards,
   settings,
   setSettings,
 }: {
   isLoading: boolean;
+  isMigrating: boolean;
   clientReady: boolean;
+  migrationMessage: string;
   onConnect: () => void;
+  onMigrateParentCards: () => void;
   settings: ReviewSettings;
   setSettings: React.Dispatch<React.SetStateAction<ReviewSettings>>;
 }) => (
@@ -836,6 +883,24 @@ const ConnectionForm = ({
         Shuffle cards
       </label>
     </div>
+    <div className="migration-card">
+      <div className="migration-copy">
+        <h3>Migration</h3>
+        <p>
+          Move the current deck tag from tagged child blocks onto their parent blocks and repoint
+          existing <code>roam/memo</code> history to the parent card when there is no parent-side
+          metadata conflict.
+        </p>
+      </div>
+      <button
+        className="button ghost"
+        onClick={onMigrateParentCards}
+        disabled={isLoading || isMigrating || !clientReady}
+      >
+        {isMigrating ? 'Migrating...' : 'Move child tags to parent cards'}
+      </button>
+      {migrationMessage ? <p className="migration-result">{migrationMessage}</p> : null}
+    </div>
   </>
 );
 
@@ -909,6 +974,31 @@ const formatError = (error: unknown) => {
 
   if (error instanceof Error) return error.message;
   return 'Unexpected error';
+};
+
+const formatParentMigrationSummary = (summary: ParentMigrationSummary, tags: string[]) => {
+  if (summary.totalCandidates === 0 && summary.skippedPageChildren === 0) {
+    return `No directly tagged child cards were found for ${tags.join(', ')}.`;
+  }
+
+  const parts = [
+    `${summary.tagsMoved} tag move${summary.tagsMoved === 1 ? '' : 's'}`,
+    `${summary.refsRepointed} metadata ref${summary.refsRepointed === 1 ? '' : 's'} updated`,
+  ];
+
+  if (summary.missingMetadata > 0) {
+    parts.push(`${summary.missingMetadata} card${summary.missingMetadata === 1 ? '' : 's'} had no ${'`roam/memo`'} entry`);
+  }
+
+  if (summary.conflicts > 0) {
+    parts.push(`${summary.conflicts} conflict${summary.conflicts === 1 ? '' : 's'} skipped because the parent already had history`);
+  }
+
+  if (summary.skippedPageChildren > 0) {
+    parts.push(`${summary.skippedPageChildren} top-level tagged block${summary.skippedPageChildren === 1 ? '' : 's'} left unchanged`);
+  }
+
+  return parts.join('. ') + '.';
 };
 
 const getCalendarDayDelta = (targetDate: Date, referenceDate = new Date()) => {
