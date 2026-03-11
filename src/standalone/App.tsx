@@ -21,11 +21,15 @@ const ARCHIVE_TAG = 'memo/archived';
 const REVIEW_IN_ROAM_TAG = 'memo/to-review';
 const SUPPORT_URL = 'https://buymeacoffee.com/vlad.sitalo';
 const PRELOAD_AHEAD_COUNT = 3;
+const SOFT_UNDO_DELAY_MS = 3000;
 type ReviewSessionData = Awaited<ReturnType<typeof loadReviewSession>>;
-type OptimisticUpdate = {
+type PendingActionStatus = 'scheduled' | 'committing';
+type PendingAction = {
   id: number;
   refUid: string;
   nextSession?: Session;
+  label: string;
+  status: PendingActionStatus;
 };
 type SwipeState = {
   startX: number;
@@ -55,7 +59,7 @@ const usePersistentSettings = () => {
 
 const applyOptimisticUpdate = (
   current: ReviewSessionData,
-  { refUid, nextSession }: Pick<OptimisticUpdate, 'refUid' | 'nextSession'>
+  { refUid, nextSession }: Pick<PendingAction, 'refUid' | 'nextSession'>
 ): ReviewSessionData => {
   const nextToday = {
     ...current.today,
@@ -123,7 +127,7 @@ const App = () => {
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [showAnswers, setShowAnswers] = React.useState(false);
   const [showSetup, setShowSetup] = React.useState(false);
-  const [optimisticUpdates, setOptimisticUpdates] = React.useState<OptimisticUpdate[]>([]);
+  const [pendingActions, setPendingActions] = React.useState<PendingAction[]>([]);
   const [blockCache, setBlockCache] = React.useState<Record<string, BlockInfo>>({});
   const [isLoading, setIsLoading] = React.useState(false);
   const [pendingWrites, setPendingWrites] = React.useState(0);
@@ -131,10 +135,12 @@ const App = () => {
   const [error, setError] = React.useState('');
   const [isMigratingCard, setIsMigratingCard] = React.useState(false);
   const didAutoConnectRef = React.useRef(false);
-  const optimisticUpdateIdRef = React.useRef(0);
+  const pendingActionIdRef = React.useRef(0);
   const swipeStateRef = React.useRef<SwipeState | null>(null);
   const blockFetchScopeRef = React.useRef(0);
   const pendingBlockFetchesRef = React.useRef<Record<string, Promise<void>>>({});
+  const pendingActionTimersRef = React.useRef<Record<number, number>>({});
+  const pendingActionRequestsRef = React.useRef<Record<number, () => Promise<void>>>({});
 
   const client = React.useMemo(() => {
     if (!settings.graph.trim() || !settings.token.trim()) return null;
@@ -181,7 +187,6 @@ const App = () => {
       setSessionData(nextSession);
       setSelectedTag(nextSelectedTag);
       setCurrentIndex(preferredIndex >= 0 ? preferredIndex : fallbackIndex);
-      setOptimisticUpdates([]);
       setBlockCache({});
       setSyncWarning('');
       setShowSetup(options?.keepSetupOpen ?? false);
@@ -195,11 +200,11 @@ const App = () => {
   const displaySessionData = React.useMemo(() => {
     if (!sessionData) return null;
 
-    return optimisticUpdates.reduce(
+    return pendingActions.reduce(
       (current, update) => applyOptimisticUpdate(current, update),
       sessionData
     );
-  }, [optimisticUpdates, sessionData]);
+  }, [pendingActions, sessionData]);
 
   const queuesByTag = React.useMemo(() => {
     if (!displaySessionData) return {};
@@ -231,6 +236,10 @@ const App = () => {
   const hasLoadedSession = Boolean(sessionData);
 
   const hasSavedCredentials = Boolean(settings.graph.trim() && settings.token.trim());
+  const latestUndoableAction = React.useMemo(
+    () => [...pendingActions].reverse().find((action) => action.status === 'scheduled') || null,
+    [pendingActions]
+  );
 
   React.useEffect(() => {
     if (!client || !hasSavedCredentials || didAutoConnectRef.current) return;
@@ -306,6 +315,191 @@ const App = () => {
     setShowAnswers(!hasChildren && !hasInlineCloze);
   }, [currentBlock, currentRefUid]);
 
+  React.useEffect(() => () => {
+    Object.values(pendingActionTimersRef.current).forEach((timerId) => {
+      window.clearTimeout(timerId);
+    });
+    pendingActionTimersRef.current = {};
+    pendingActionRequestsRef.current = {};
+  }, []);
+
+  const commitPendingAction = React.useCallback(
+    (pendingAction: PendingAction) => {
+      delete pendingActionTimersRef.current[pendingAction.id];
+
+      setPendingActions((current) =>
+        current.map((action) =>
+          action.id === pendingAction.id ? { ...action, status: 'committing' } : action
+        )
+      );
+
+      const request = pendingActionRequestsRef.current[pendingAction.id];
+      if (!request) return;
+
+      setPendingWrites((current) => current + 1);
+
+      void request()
+        .then(() => {
+          setSessionData((current) =>
+            current ? applyOptimisticUpdate(current, pendingAction) : current
+          );
+          setPendingActions((current) =>
+            current.filter((action) => action.id !== pendingAction.id)
+          );
+        })
+        .catch((caughtError) => {
+          setPendingActions((current) =>
+            current.filter((action) => action.id !== pendingAction.id)
+          );
+          if (caughtError instanceof RoamApiError && caughtError.status === 429) {
+            const retrySeconds = Math.ceil((caughtError.retryAfterMs || 0) / 1000);
+            setSyncWarning(
+              retrySeconds > 0
+                ? `Roam rate-limited sync. The app backed off and retried automatically. If this persists, wait about ${retrySeconds}s before continuing.`
+                : 'Roam rate-limited sync. The app retried automatically, but this item may need a manual reconnect.'
+            );
+          }
+          setError(formatError(caughtError));
+        })
+        .finally(() => {
+          delete pendingActionRequestsRef.current[pendingAction.id];
+          setPendingWrites((current) => Math.max(current - 1, 0));
+        });
+    },
+    []
+  );
+
+  const scheduleOptimisticWrite = React.useCallback(
+    ({
+      refUid,
+      optimisticSession,
+      label,
+      request,
+    }: {
+      refUid: string;
+      optimisticSession?: Session;
+      label: string;
+      request: () => Promise<void>;
+    }) => {
+      const pendingAction = {
+        id: pendingActionIdRef.current + 1,
+        refUid,
+        nextSession: optimisticSession,
+        label,
+        status: 'scheduled' as const,
+      };
+
+      pendingActionIdRef.current = pendingAction.id;
+      setError('');
+      setSyncWarning('');
+      pendingActionRequestsRef.current[pendingAction.id] = request;
+      pendingActionTimersRef.current[pendingAction.id] = window.setTimeout(() => {
+        commitPendingAction(pendingAction);
+      }, SOFT_UNDO_DELAY_MS);
+      setPendingActions((current) => [...current, pendingAction]);
+    },
+    [commitPendingAction]
+  );
+
+  const handleUndoPendingAction = React.useCallback((pendingActionId: number) => {
+    const timerId = pendingActionTimersRef.current[pendingActionId];
+    if (timerId) {
+      window.clearTimeout(timerId);
+    }
+
+    delete pendingActionTimersRef.current[pendingActionId];
+    delete pendingActionRequestsRef.current[pendingActionId];
+    setPendingActions((current) => current.filter((action) => action.id !== pendingActionId));
+  }, []);
+
+  const formatUndoLabel = React.useCallback((label: string) => `${label} in 3s`, []);
+
+  const handleGrade = React.useCallback(
+    (grade: number) => {
+      if (!client || !currentRefUid) return;
+
+      const referenceDate = new Date();
+      const nextSession = {
+        ...generatePracticeData({
+          ...currentCardData,
+          dateCreated: referenceDate,
+          grade,
+          reviewMode: currentCardData.reviewMode || ReviewModes.DefaultSpacedInterval,
+        }),
+        dateCreated: referenceDate,
+      };
+
+      scheduleOptimisticWrite({
+        refUid: currentRefUid,
+        optimisticSession: nextSession,
+        label: 'Review queued',
+        request: () =>
+          savePracticeData(client, {
+            ...nextSession,
+            refUid: currentRefUid,
+            dataPageTitle: settings.dataPageTitle,
+          }),
+      });
+    },
+    [client, currentCardData, currentRefUid, scheduleOptimisticWrite, settings.dataPageTitle]
+  );
+
+  const handleFixedIntervalReview = React.useCallback(() => {
+    if (!client || !currentRefUid) return;
+
+    const referenceDate = new Date();
+    const nextSession = {
+      ...generatePracticeData({
+        ...currentCardData,
+        dateCreated: referenceDate,
+        reviewMode: ReviewModes.FixedInterval,
+      }),
+      dateCreated: referenceDate,
+    };
+
+    scheduleOptimisticWrite({
+      refUid: currentRefUid,
+      optimisticSession: nextSession,
+      label: 'Interval save queued',
+      request: () =>
+        savePracticeData(client, {
+          ...nextSession,
+          refUid: currentRefUid,
+          dataPageTitle: settings.dataPageTitle,
+        }),
+    });
+  }, [client, currentCardData, currentRefUid, scheduleOptimisticWrite, settings.dataPageTitle]);
+
+  const handleArchive = React.useCallback(() => {
+    if (!client || !currentRefUid) return;
+
+    scheduleOptimisticWrite({
+      refUid: currentRefUid,
+      label: 'Archive queued',
+      request: () =>
+        archiveCard(client, {
+          refUid: currentRefUid,
+          dataPageTitle: settings.dataPageTitle,
+          tag: ARCHIVE_TAG,
+        }),
+    });
+  }, [client, currentRefUid, scheduleOptimisticWrite, settings.dataPageTitle]);
+
+  const handleReviewInRoam = React.useCallback(() => {
+    if (!client || !currentRefUid) return;
+
+    scheduleOptimisticWrite({
+      refUid: currentRefUid,
+      label: 'Review in Roam queued',
+      request: () =>
+        archiveCard(client, {
+          refUid: currentRefUid,
+          dataPageTitle: settings.dataPageTitle,
+          tag: REVIEW_IN_ROAM_TAG,
+        }),
+    });
+  }, [client, currentRefUid, scheduleOptimisticWrite, settings.dataPageTitle]);
+
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!currentRefUid) return;
@@ -336,141 +530,7 @@ const App = () => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [currentCardData.reviewMode, currentQueue.length, currentRefUid, showAnswers]);
-
-  const runOptimisticWrite = React.useCallback(
-    ({
-      refUid,
-      optimisticSession,
-      request,
-    }: {
-      refUid: string;
-      optimisticSession?: Session;
-      request: () => Promise<void>;
-    }) => {
-      const optimisticUpdate = {
-        id: optimisticUpdateIdRef.current + 1,
-        refUid,
-        nextSession: optimisticSession,
-      };
-
-      optimisticUpdateIdRef.current = optimisticUpdate.id;
-      setError('');
-      setSyncWarning('');
-      setOptimisticUpdates((current) => [...current, optimisticUpdate]);
-      setPendingWrites((current) => current + 1);
-
-      void request()
-        .then(() => {
-          setSessionData((current) =>
-            current ? applyOptimisticUpdate(current, optimisticUpdate) : current
-          );
-          setOptimisticUpdates((current) =>
-            current.filter((update) => update.id !== optimisticUpdate.id)
-          );
-        })
-        .catch((caughtError) => {
-          setOptimisticUpdates((current) =>
-            current.filter((update) => update.id !== optimisticUpdate.id)
-          );
-          if (caughtError instanceof RoamApiError && caughtError.status === 429) {
-            const retrySeconds = Math.ceil((caughtError.retryAfterMs || 0) / 1000);
-            setSyncWarning(
-              retrySeconds > 0
-                ? `Roam rate-limited sync. The app backed off and retried automatically. If this persists, wait about ${retrySeconds}s before continuing.`
-                : 'Roam rate-limited sync. The app retried automatically, but this item may need a manual reconnect.'
-            );
-          }
-          setError(formatError(caughtError));
-        })
-        .finally(() => {
-          setPendingWrites((current) => Math.max(current - 1, 0));
-        });
-    },
-    []
-  );
-
-  const handleGrade = React.useCallback(
-    (grade: number) => {
-      if (!client || !currentRefUid) return;
-
-      const referenceDate = new Date();
-      const nextSession = {
-        ...generatePracticeData({
-          ...currentCardData,
-          dateCreated: referenceDate,
-          grade,
-          reviewMode: currentCardData.reviewMode || ReviewModes.DefaultSpacedInterval,
-        }),
-        dateCreated: referenceDate,
-      };
-
-      runOptimisticWrite({
-        refUid: currentRefUid,
-        optimisticSession: nextSession,
-        request: () =>
-          savePracticeData(client, {
-            ...nextSession,
-            refUid: currentRefUid,
-            dataPageTitle: settings.dataPageTitle,
-          }),
-      });
-    },
-    [client, currentCardData, currentRefUid, runOptimisticWrite, settings.dataPageTitle]
-  );
-
-  const handleFixedIntervalReview = React.useCallback(() => {
-    if (!client || !currentRefUid) return;
-
-    const referenceDate = new Date();
-    const nextSession = {
-      ...generatePracticeData({
-        ...currentCardData,
-        dateCreated: referenceDate,
-        reviewMode: ReviewModes.FixedInterval,
-      }),
-      dateCreated: referenceDate,
-    };
-
-    runOptimisticWrite({
-      refUid: currentRefUid,
-      optimisticSession: nextSession,
-      request: () =>
-        savePracticeData(client, {
-          ...nextSession,
-          refUid: currentRefUid,
-          dataPageTitle: settings.dataPageTitle,
-        }),
-    });
-  }, [client, currentCardData, currentRefUid, runOptimisticWrite, settings.dataPageTitle]);
-
-  const handleArchive = React.useCallback(() => {
-    if (!client || !currentRefUid) return;
-
-    runOptimisticWrite({
-      refUid: currentRefUid,
-      request: () =>
-        archiveCard(client, {
-          refUid: currentRefUid,
-          dataPageTitle: settings.dataPageTitle,
-          tag: ARCHIVE_TAG,
-        }),
-    });
-  }, [client, currentRefUid, runOptimisticWrite, settings.dataPageTitle]);
-
-  const handleReviewInRoam = React.useCallback(() => {
-    if (!client || !currentRefUid) return;
-
-    runOptimisticWrite({
-      refUid: currentRefUid,
-      request: () =>
-        archiveCard(client, {
-          refUid: currentRefUid,
-          dataPageTitle: settings.dataPageTitle,
-          tag: REVIEW_IN_ROAM_TAG,
-        }),
-    });
-  }, [client, currentRefUid, runOptimisticWrite, settings.dataPageTitle]);
+  }, [currentCardData.reviewMode, currentQueue.length, currentRefUid, handleGrade, showAnswers]);
 
   const intervalEstimates = React.useMemo(() => {
     if (currentCardData.reviewMode !== ReviewModes.DefaultSpacedInterval) return [];
@@ -728,6 +788,18 @@ const App = () => {
                 </div>
               )}
             </div>
+
+            {latestUndoableAction && !showSetup ? (
+              <div className="undo-toast" role="status" aria-live="polite">
+                <span>{formatUndoLabel(latestUndoableAction.label)}</span>
+                <button
+                  className="button secondary undo-button"
+                  onClick={() => handleUndoPendingAction(latestUndoableAction.id)}
+                >
+                  Undo
+                </button>
+              </div>
+            ) : null}
 
             {currentRefUid && !showSetup ? (
               <div className="review-footer">

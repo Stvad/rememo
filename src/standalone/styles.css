@@ -395,6 +395,28 @@ input:focus {
   border-top: 1px solid rgba(29, 20, 8, 0.08);
 }
 
+.undo-toast {
+  margin-top: 12px;
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: rgba(29, 20, 8, 0.08);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.undo-toast span {
+  min-width: 0;
+  font-size: 0.88rem;
+}
+
+.undo-button {
+  flex-shrink: 0;
+  padding: 8px 12px;
+}
+
 .review-setup-screen {
   min-height: 100%;
 }
@@ -933,6 +955,23 @@ input:focus {
     padding-bottom: calc(6px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, rgba(255, 252, 246, 0), rgba(255, 252, 246, 0.94) 18%, rgba(255, 252, 246, 0.98));
     backdrop-filter: blur(10px);
+  }
+
+  .undo-toast {
+    margin-top: 10px;
+    padding: 9px 10px;
+    border-radius: 14px;
+    font-size: 0.8rem;
+  }
+
+  .undo-toast span {
+    font-size: 0.8rem;
+  }
+
+  .undo-button {
+    min-height: 34px;
+    padding: 7px 12px;
+    font-size: 0.8rem;
   }
 
   .setup-card {
