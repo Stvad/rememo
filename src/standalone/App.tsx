@@ -28,7 +28,7 @@ type PendingAction = {
   id: number;
   refUid: string;
   nextSession?: Session;
-  label: string;
+  undoLabel: string;
   status: PendingActionStatus;
 };
 type SwipeState = {
@@ -373,19 +373,19 @@ const App = () => {
     ({
       refUid,
       optimisticSession,
-      label,
+      undoLabel,
       request,
     }: {
       refUid: string;
       optimisticSession?: Session;
-      label: string;
+      undoLabel: string;
       request: () => Promise<void>;
     }) => {
       const pendingAction = {
         id: pendingActionIdRef.current + 1,
         refUid,
         nextSession: optimisticSession,
-        label,
+        undoLabel,
         status: 'scheduled' as const,
       };
 
@@ -412,8 +412,6 @@ const App = () => {
     setPendingActions((current) => current.filter((action) => action.id !== pendingActionId));
   }, []);
 
-  const formatUndoLabel = React.useCallback((label: string) => `${label} in 3s`, []);
-
   const handleGrade = React.useCallback(
     (grade: number) => {
       if (!client || !currentRefUid) return;
@@ -432,7 +430,7 @@ const App = () => {
       scheduleOptimisticWrite({
         refUid: currentRefUid,
         optimisticSession: nextSession,
-        label: 'Review queued',
+        undoLabel: 'Undo last review',
         request: () =>
           savePracticeData(client, {
             ...nextSession,
@@ -460,7 +458,7 @@ const App = () => {
     scheduleOptimisticWrite({
       refUid: currentRefUid,
       optimisticSession: nextSession,
-      label: 'Interval save queued',
+      undoLabel: 'Undo last review',
       request: () =>
         savePracticeData(client, {
           ...nextSession,
@@ -475,7 +473,7 @@ const App = () => {
 
     scheduleOptimisticWrite({
       refUid: currentRefUid,
-      label: 'Archive queued',
+      undoLabel: 'Undo archive',
       request: () =>
         archiveCard(client, {
           refUid: currentRefUid,
@@ -490,7 +488,7 @@ const App = () => {
 
     scheduleOptimisticWrite({
       refUid: currentRefUid,
-      label: 'Review in Roam queued',
+      undoLabel: 'Undo review in Roam',
       request: () =>
         archiveCard(client, {
           refUid: currentRefUid,
@@ -791,12 +789,12 @@ const App = () => {
 
             {latestUndoableAction && !showSetup ? (
               <div className="undo-toast" role="status" aria-live="polite">
-                <span>{formatUndoLabel(latestUndoableAction.label)}</span>
+                <span>Undo available for 3s.</span>
                 <button
                   className="button secondary undo-button"
                   onClick={() => handleUndoPendingAction(latestUndoableAction.id)}
                 >
-                  Undo
+                  {latestUndoableAction.undoLabel}
                 </button>
               </div>
             ) : null}
