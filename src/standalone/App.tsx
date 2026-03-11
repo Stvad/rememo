@@ -236,6 +236,7 @@ const App = () => {
   const hasLoadedSession = Boolean(sessionData);
 
   const hasSavedCredentials = Boolean(settings.graph.trim() && settings.token.trim());
+  const hasUnsavedWork = pendingActions.some((action) => action.status === 'scheduled') || pendingWrites > 0;
   const latestUndoableAction = React.useMemo(
     () => [...pendingActions].reverse().find((action) => action.status === 'scheduled') || null,
     [pendingActions]
@@ -262,6 +263,18 @@ const App = () => {
       setCurrentIndex(nextMaxIndex);
     }
   }, [currentIndex, currentQueue.length]);
+
+  React.useEffect(() => {
+    if (!hasUnsavedWork) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedWork]);
 
   const preloadBlock = React.useCallback(
     (refUid: string, { surfaceErrors = false }: { surfaceErrors?: boolean } = {}) => {
