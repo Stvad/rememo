@@ -3,7 +3,8 @@ import React from 'react';
 const TOKEN_RE = /(\^\^.+?\^\^|\{.+?\}|\[\[.+?\]\]|\(\(.+?\)\))/g;
 const SPECIAL_TOKEN_RE = /^(\^\^.+?\^\^|\{.+?\}|\[\[.+?\]\]|\(\(.+?\)\))$/;
 const INLINE_TOKEN_RE =
-  /(\[[^\]]+\]\((?:https?:\/\/|www\.)[^\s)]+\)|(?:https?:\/\/|www\.)[^\s<]+|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
+  /(!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\((?:https?:\/\/|www\.)[^\s)]+\)|(?:https?:\/\/|www\.)[^\s<]+|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
+const MARKDOWN_IMAGE_RE = /^!\[([^\]]*)\]\((.+)\)$/;
 const MARKDOWN_LINK_RE = /^\[([^\]]+)\]\(((?:https?:\/\/|www\.)[^\s)]+)\)$/;
 const BOLD_RE = /^(\*\*|__)([\s\S]+)\1$/;
 const ITALIC_RE = /^(\*|_)([\s\S]+)\1$/;
@@ -22,13 +23,55 @@ const trimUrlSuffix = (url: string) => {
   return { trimmedUrl, trailingText };
 };
 
+const normalizeImageUrl = (url: string) => {
+  if (url.startsWith('www.')) {
+    return `https://${url}`;
+  }
+
+  return url;
+};
+
+const parseMarkdownImageToken = (token: string) => {
+  const match = token.match(MARKDOWN_IMAGE_RE);
+  if (!match) {
+    return null;
+  }
+
+  const [, alt, rawSource] = match;
+  const sourceWithoutTitle = rawSource.replace(/\s+"[^"]*"\s*$/, '').trim();
+  const unwrappedSource =
+    sourceWithoutTitle.startsWith('<') && sourceWithoutTitle.endsWith('>')
+      ? sourceWithoutTitle.slice(1, -1).trim()
+      : sourceWithoutTitle;
+
+  if (!unwrappedSource) {
+    return null;
+  }
+
+  return { alt, url: unwrappedSource };
+};
+
 const renderInlineMarkdown = (text: string, keyPrefix: string): React.ReactNode[] =>
   text
     .split(INLINE_TOKEN_RE)
     .filter(Boolean)
     .flatMap((token, index) => {
       const key = `${keyPrefix}-${index}`;
+      const markdownImageMatch = parseMarkdownImageToken(token);
       const markdownLinkMatch = token.match(MARKDOWN_LINK_RE);
+
+      if (markdownImageMatch) {
+        const { alt, url } = markdownImageMatch;
+        return (
+          <img
+            key={key}
+            className="inline-image"
+            src={normalizeImageUrl(url)}
+            alt={alt || 'Embedded image'}
+            loading="lazy"
+          />
+        );
+      }
 
       if (markdownLinkMatch) {
         const [, label, url] = markdownLinkMatch;
