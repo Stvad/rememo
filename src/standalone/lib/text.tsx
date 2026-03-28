@@ -3,7 +3,8 @@ import React from 'react';
 const TOKEN_RE = /(\^\^.+?\^\^|\{.+?\}|\[\[.+?\]\]|\(\(.+?\)\))/g;
 const SPECIAL_TOKEN_RE = /^(\^\^.+?\^\^|\{.+?\}|\[\[.+?\]\]|\(\(.+?\)\))$/;
 const INLINE_TOKEN_RE =
-  /(\[[^\]]+\]\((?:https?:\/\/|www\.)[^\s)]+\)|(?:https?:\/\/|www\.)[^\s<]+|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
+  /(!\[[^\]]*\]\((?:https?:\/\/|www\.)[^\s)]+\)|\[[^\]]+\]\((?:https?:\/\/|www\.)[^\s)]+\)|(?:https?:\/\/|www\.)[^\s<]+|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
+const MARKDOWN_IMAGE_RE = /^!\[([^\]]*)\]\(((?:https?:\/\/|www\.)[^\s)]+)\)$/;
 const MARKDOWN_LINK_RE = /^\[([^\]]+)\]\(((?:https?:\/\/|www\.)[^\s)]+)\)$/;
 const BOLD_RE = /^(\*\*|__)([\s\S]+)\1$/;
 const ITALIC_RE = /^(\*|_)([\s\S]+)\1$/;
@@ -28,7 +29,21 @@ const renderInlineMarkdown = (text: string, keyPrefix: string): React.ReactNode[
     .filter(Boolean)
     .flatMap((token, index) => {
       const key = `${keyPrefix}-${index}`;
+      const markdownImageMatch = token.match(MARKDOWN_IMAGE_RE);
       const markdownLinkMatch = token.match(MARKDOWN_LINK_RE);
+
+      if (markdownImageMatch) {
+        const [, alt, url] = markdownImageMatch;
+        return (
+          <img
+            key={key}
+            className="inline-image"
+            src={normalizeUrl(url)}
+            alt={alt || 'Embedded image'}
+            loading="lazy"
+          />
+        );
+      }
 
       if (markdownLinkMatch) {
         const [, label, url] = markdownLinkMatch;

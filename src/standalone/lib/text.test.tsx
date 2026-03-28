@@ -16,6 +16,13 @@ describe('renderRoamText', () => {
     expect(link.getAttribute('href')).toBe('https://example.com');
   });
 
+  test('renders markdown images as inline images', () => {
+    render(<div>{renderRoamText('Diagram: ![System map](https://example.com/map.png)', true)}</div>);
+
+    const image = screen.getByRole('img', { name: 'System map' });
+    expect(image.getAttribute('src')).toBe('https://example.com/map.png');
+  });
+
   test('keeps roam page refs rendered alongside markdown styling', () => {
     render(<div>{renderRoamText('Review [[memo]] and **bold** notes', true)}</div>);
 
